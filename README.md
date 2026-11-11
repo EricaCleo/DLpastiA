@@ -24,7 +24,12 @@ src/eval/metrics.py          PSNR, SSIM, LPIPS (hole only), FID, diversity
 src/eval/evaluate.py         shared evaluation loop
 src/methods/base.py          Inpainter interface: fill(masked, mask, K)
 src/methods/baselines.py     grey fill, mirror paste (sanity baselines)
-notebooks/inpainting_afhq.ipynb   driver notebook (Colab / Kaggle / local)
+src/eval/results.py          save / load per-method metrics -> comparison table
+notebooks/                   one notebook per pipeline (Colab / Kaggle / university GPU):
+  00_data_and_baselines      download, masks, sanity baselines
+  01_mae  02_stylegan_inversion  03_stylegan_noninversion
+  04_mirror_conditioned  05_repaint  06_mirror_guided_repaint
+  07_results                 comparison tables and figures
 ```
 
 ## Data
@@ -39,4 +44,4 @@ python scripts/run_eval.py --method mirror_paste --n 100
 Test masks are fixed by seed, so every method is scored on identical holes.
 
 ## Status
-Done: data pipeline, masks, metrics, eval loop, baselines. Method files are stubs to fill in.
+Done: data pipeline, masks, metrics, eval loop, baselines, one notebook per pipeline. Method files (`src/methods/`) are stubs to fill in; notebooks 01-06 run once their method is implemented.
