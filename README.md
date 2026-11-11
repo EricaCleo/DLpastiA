@@ -22,6 +22,8 @@ src/data/preprocessing.py    dataset, resize, [-1,1] normalisation, fixed test m
 src/data/masks.py            square / one-sided / centre masks, compositing
 src/eval/metrics.py          PSNR, SSIM, LPIPS (hole only), FID, diversity
 src/eval/evaluate.py         shared evaluation loop
+src/diffusion/               DDPM schedule, U-Net (diffusers), resumable training, RePaint schedule
+scripts/train_ddpm.py        train the diffusion model for Methods 5 and 6 (sbatch)
 src/methods/base.py          Inpainter interface: fill(masked, mask, K)
 src/methods/baselines.py     grey fill, mirror paste (sanity baselines)
 src/eval/results.py          save / load per-method metrics -> comparison table
@@ -44,4 +46,4 @@ python scripts/run_eval.py --method mirror_paste --n 100
 Test masks are fixed by seed, so every method is scored on identical holes.
 
 ## Status
-Done: data pipeline, masks, metrics, eval loop, baselines, one notebook per pipeline. Method files (`src/methods/`) are stubs to fill in; notebooks 01-06 run once their method is implemented.
+Done: data pipeline, masks, metrics, eval loop, baselines, one notebook per pipeline, Slurm templates, RePaint sampler (Method 5) and mirror guidance (Method 6), DDPM training script. Tested on CPU with an oracle denoiser and a tiny U-Net; not yet trained on AFHQ. Still stubs: MAE, StyleGAN inversion, StyleGAN non-inversion, mirror-conditioned StyleGAN.

@@ -10,3 +10,4 @@ torch-fidelity
 tqdm
 matplotlib
 pandas
+diffusers
