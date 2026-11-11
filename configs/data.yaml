@@ -1,0 +1,6 @@
+kaggle_dataset: andrewmvd/animal-faces
+raw_dir: data/raw
+mask_dir: data/masks
+image_size: 256          # 128 for diffusion if compute is limited
+mask_ratio: [0.10, 0.40] # square hole covers 10-40% of image area
+test_seed: 1234          # fixed seed so every method sees identical test holes

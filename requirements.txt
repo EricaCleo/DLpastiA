@@ -1,0 +1,10 @@
+torch
+torchvision
+numpy
+pillow
+pyyaml
+kagglehub
+lpips
+scikit-image
+torch-fidelity
+tqdm

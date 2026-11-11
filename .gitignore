@@ -1,0 +1,9 @@
+data/raw/
+data/masks/
+checkpoints/
+outputs/
+__pycache__/
+*.pyc
+.env
+kaggle.json
+.ipynb_checkpoints/
