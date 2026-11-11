@@ -16,6 +16,9 @@ PIP_INDEX="${PIP_INDEX:-}"
 echo "Env: $ENV_NAME | Python: $PYTHON_VERSION | Project: $PROJECT_DIR | Host: $(hostname)"
 cd "$PROJECT_DIR"
 
+# The login node's local disk (/ and /tmp) can be full; keep temp files on the big /data filesystem
+export TMPDIR="${TMPDIR:-$PROJECT_DIR/../tmp}"; mkdir -p "$TMPDIR"
+
 source /etc/profile || true
 [ -f ~/.bashrc ] && source ~/.bashrc || true
 if command -v module >/dev/null 2>&1; then
