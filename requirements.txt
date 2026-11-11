@@ -8,3 +8,5 @@ lpips
 scikit-image
 torch-fidelity
 tqdm
+matplotlib
+pandas
