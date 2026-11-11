@@ -1,4 +1,4 @@
-data/raw/
+data/raw
 data/real_test_*/
 checkpoints/
 outputs/
