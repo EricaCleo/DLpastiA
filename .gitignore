@@ -1,5 +1,5 @@
 data/raw/
-data/masks/
+data/real_test_*/
 checkpoints/
 outputs/
 __pycache__/
