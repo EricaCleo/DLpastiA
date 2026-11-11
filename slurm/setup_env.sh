@@ -32,6 +32,7 @@ else
   conda create -n "$ENV_NAME" "python=${PYTHON_VERSION}" -y
 fi
 conda activate "$ENV_NAME"
+export PYTHONNOUSERSITE=1   # ignore ~/.local packages that can shadow the conda env
 python --version
 
 # 1) PyTorch (CUDA build), 2) everything else
