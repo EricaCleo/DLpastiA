@@ -5,7 +5,7 @@
 #
 # EDIT THESE (the #SBATCH lines are read by Slurm, so they cannot use variables):
 #SBATCH -J dlpastia
-#SBATCH -p gpu_a800
+#SBATCH -p hp_5090   # public partitions seen with `sinfo -s`: gpu_4090, gpu_5090, hp_4090, hp_5090
 #SBATCH --gpus=1
 # Slurm writes slurm-<JOBID>.out / .err into the folder you submitted from.
 

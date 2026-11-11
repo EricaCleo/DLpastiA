@@ -8,8 +8,8 @@ set -e
 ENV_NAME="${ENV_NAME:-dlpastia}"
 PYTHON_VERSION="${PYTHON_VERSION:-3.10}"
 PROJECT_DIR="${PROJECT_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
-# PyTorch wheels must match the GPU driver. A800 / H200 need a CUDA 12.x build.
-TORCH_INDEX="${TORCH_INDEX:-https://download.pytorch.org/whl/cu121}"
+# PyTorch wheels must match the GPU generation: RTX 5090 (Blackwell) needs a CUDA 12.8 build (torch>=2.7); the same build also runs on RTX 4090.
+TORCH_INDEX="${TORCH_INDEX:-https://download.pytorch.org/whl/cu128}"
 # If PyPI is slow from the cluster, set e.g. PIP_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
 PIP_INDEX="${PIP_INDEX:-}"
 
