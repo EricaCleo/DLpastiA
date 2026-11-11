@@ -10,7 +10,7 @@ Deep learning course project. Inpainting a square hole (10-40% of the image) on 
 | 3 | `src/methods/stylegan_noninversion.py` | StyleGAN Non-Inversion | supervised |
 | 4 | `src/methods/mirror_conditioned.py` | Mirror-Conditioned (StyleGAN) | supervised |
 | 5 | `src/methods/repaint.py` | RePaint | unsupervised |
-| 6 | `src/methods/mirror_diffusion.py` | Mirror-Conditioned + Diffusion (ours) | TBD |
+| 6 | `src/methods/mirror_diffusion.py` | Mirror-Guided RePaint, training-free adaptive guidance (ours) | unsupervised |
 
 ## Layout
 ```
