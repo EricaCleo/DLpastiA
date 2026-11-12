@@ -5,7 +5,8 @@
 #
 # EDIT THESE (the #SBATCH lines are read by Slurm, so they cannot use variables):
 #SBATCH -J dlpastia
-#SBATCH -p hp_5090   # public partitions seen with `sinfo -s`: gpu_4090, gpu_5090, hp_4090, hp_5090
+#SBATCH -p gpu_5090   # allowed for this account: gpu_5090, gpu_4090 (hp_* are rejected: invalid account/partition)
+#SBATCH --time=01:00:00   # time limit; raise for training (e.g. 24:00:00). Without it the scheduler cannot plan.
 #SBATCH --gpus=1
 # Slurm writes slurm-<JOBID>.out / .err into the folder you submitted from.
 
