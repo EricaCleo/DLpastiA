@@ -1,7 +1,7 @@
 #!/bin/bash
 # Submit from the project folder on the login node:
 #   sbatch slurm/run_job.sbatch "python scripts/run_eval.py --method mirror_paste --n 200"
-# Then:  parajobs   (status)   |   tail -f program.log   |   scancel <JOBID>
+# Then:  squeue -u $USER   |   tail -f program.log (newest job; each job also keeps program-<JOBID>.log)   |   scancel <JOBID>
 #
 # EDIT THESE (the #SBATCH lines are read by Slurm, so they cannot use variables):
 #SBATCH -J dlpastia
@@ -27,8 +27,10 @@ export PYTHONNOUSERSITE=1   # ignore ~/.local packages that can shadow the conda
 python -c "import torch; print('torch', torch.__version__, '| cuda:', torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else '')"
 
 set +e
-eval "$RUN_CMD" > program.log 2>&1
+LOG="program-${SLURM_JOB_ID:-local}.log"   # one log per job (no more stale/overwritten logs)
+ln -sf "$LOG" program.log                    # program.log always points at the newest job
+eval "$RUN_CMD" > "$LOG" 2>&1
 STATUS=$?
 set -e
-echo "Finished: status $STATUS, $(( $(date +%s) - START )) s. Log: $PROJECT_DIR/program.log"
+echo "Finished: status $STATUS, $(( $(date +%s) - START )) s. Log: $PROJECT_DIR/$LOG"
 exit $STATUS
