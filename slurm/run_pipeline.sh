@@ -1,7 +1,7 @@
 #!/bin/bash
 # Runs one pipeline STAGE (several commands in a row, on the same GPU, no re-queueing).
 #   bash slurm/run_pipeline.sh <stage>
-# Stages:  train_ddpm | eval_diffusion | train_mae | eval_mae | train_g_uncond | train_comod | train_mirror_04a | train_mirror_04b | eval_gan
+# Stages:  train_ddpm | eval_diffusion | train_mae | eval_mae | train_g_uncond | train_comod | train_mirror_04a | train_mirror_04b | eval_gan | train_uvit | eval_uvit
 # Override settings with environment variables, e.g.  N=100 K=3 RESAMPLES=10 bash slurm/run_pipeline.sh eval_diffusion
 # Add new stages (train_mae, train_gan, ...) as new `case` branches when those methods exist.
 set -e
@@ -53,6 +53,16 @@ case "$STAGE" in
         echo "=== mirror_$v / $mask ==="
         python scripts/m4_mirror_conditioned.py eval --ckpt "checkpoints/mirror_${v}_128.pt" --name "mirror_$v" --mask "$mask" --n "${N_GAN:-100}" --K 3 --image-size "$SIZE" --save-dir "outputs/samples/mirror_${v}_${mask}"
       done
+    done ;;
+  train_uvit)       # Method 5b: RePaint with a U-ViT backbone (diffusion model trained from scratch)
+    python scripts/m5_repaint.py train --arch uvit --amp --image-size "$SIZE" --batch-size 16 \
+      --max-steps "${MAX_STEPS:-300000}" --save-every 1000 --ckpt "${UVIT_CKPT:-checkpoints/uvit_128.pt}" ;;
+  eval_uvit)        # RePaint and mirror-guided RePaint on the U-ViT model (separate result names)
+    for mask in one_sided centre square; do
+      U="${UVIT_CKPT:-checkpoints/uvit_128.pt}"
+      python scripts/m5_repaint.py eval --ckpt "$U" --name repaint_uvit --mask "$mask" --n "$N" --K "$K" --image-size "$SIZE" --resamples "$RESAMPLES" --save-dir "outputs/samples/repaint_uvit_${mask}"
+      python scripts/m6_mirror_guided_repaint.py eval --ckpt "$U" --fixed --name mirror_repaint_fixed_uvit --mask "$mask" --n "$N" --K "$K" --image-size "$SIZE" --resamples "$RESAMPLES" --save-dir "outputs/samples/mirror_fixed_uvit_${mask}"
+      python scripts/m6_mirror_guided_repaint.py eval --ckpt "$U" --adaptive --name mirror_repaint_adaptive_uvit --mask "$mask" --n "$N" --K "$K" --image-size "$SIZE" --resamples "$RESAMPLES" --save-dir "outputs/samples/mirror_adaptive_uvit_${mask}"
     done ;;
   *) echo "unknown stage: $STAGE"; exit 2 ;;
 esac

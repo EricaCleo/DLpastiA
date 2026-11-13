@@ -22,8 +22,18 @@ class EpsUNet(nn.Module):
         return self.net(x, t).sample
 
 
+def build_eps_model(cfg):
+    """cfg saved in a checkpoint -> model. Checkpoints without an 'arch' entry are U-Nets (older runs)."""
+    cfg = dict(cfg)
+    if cfg.pop("arch", "unet") == "uvit":
+        from .uvit import EpsUViT
+        cfg.pop("arch", None)
+        return EpsUViT(**cfg)
+    return EpsUNet(**cfg)
+
+
 def load_eps_model(ckpt_path, device="cpu", use_ema=True):
     ck = torch.load(ckpt_path, map_location=device)
-    m = EpsUNet(**ck["cfg"]).to(device)
+    m = build_eps_model(ck["cfg"]).to(device)
     m.load_state_dict(ck["ema"] if use_ema and "ema" in ck else ck["model"])
     return m.eval()

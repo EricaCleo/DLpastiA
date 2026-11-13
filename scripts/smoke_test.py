@@ -81,6 +81,19 @@ def _():
                                           steps=5, jump_length=2, resamples=2, device="cpu"))
 
 
+@check("method 5b U-ViT backbone: train tiny + RePaint + mirror-guided evaluate")
+def _():
+    from src.diffusion import EpsUViT, load_eps_model
+    from src.diffusion.train import train_ddpm
+    from src.methods.mirror_diffusion import MirrorGuidedRePaint
+    from src.methods.repaint import RePaint
+    train_ddpm(EpsUViT(image_size=S, patch=8, dim=32, depth=3, heads=4), rand_loader(), TMP / "uvit.pt", max_steps=4, save_every=4, device="cpu", log_every=100)
+    net = load_eps_model(TMP / "uvit.pt")
+    assert type(net).__name__ == "EpsUViT"
+    evaluate_tiny(RePaint(net, steps=5, jump_length=2, resamples=2, device="cpu"))
+    evaluate_tiny(MirrorGuidedRePaint(net, lam=0.1, adaptive=True, steps=5, jump_length=2, resamples=2, device="cpu"))
+
+
 @check("method 1 MAE: tiny model train + resume + evaluate")
 def _():
     from src.methods.mae import MAEInpainter, build_mae, load_mae
