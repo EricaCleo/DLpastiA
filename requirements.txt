@@ -11,3 +11,4 @@ tqdm
 matplotlib
 pandas
 diffusers
+transformers

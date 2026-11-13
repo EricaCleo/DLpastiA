@@ -24,6 +24,7 @@ command -v module >/dev/null 2>&1 && module load miniforge3 || true
 source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate "$ENV_NAME"
 export PYTHONNOUSERSITE=1   # ignore ~/.local packages that can shadow the conda env
+export HF_HUB_OFFLINE=1     # compute nodes have no internet: use the weights cached on the login node
 python -c "import torch; print('torch', torch.__version__, '| cuda:', torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else '')"
 
 set +e

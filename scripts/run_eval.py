@@ -11,7 +11,7 @@ from src.eval import evaluate
 from src.methods import GreyFill, MirrorPaste
 
 BASELINES = {"grey_fill": GreyFill, "mirror_paste": MirrorPaste}
-METHODS = list(BASELINES) + ["repaint", "mirror_repaint_fixed", "mirror_repaint_adaptive"]
+METHODS = list(BASELINES) + ["mae", "repaint", "mirror_repaint_fixed", "mirror_repaint_adaptive"]
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--method", required=True, choices=METHODS)
@@ -19,6 +19,7 @@ ap.add_argument("--mask", default="square", choices=["square", "one_sided", "cen
 ap.add_argument("--n", type=int, default=None)
 ap.add_argument("--no-lpips", action="store_true")
 ap.add_argument("--ckpt", default="checkpoints/ddpm.pt", help="diffusion checkpoint (repaint methods)")
+ap.add_argument("--mae-ckpt", default="checkpoints/mae_128.pt", help="fine-tuned MAE checkpoint")
 ap.add_argument("--steps", type=int, default=250)
 ap.add_argument("--jump-length", type=int, default=10)
 ap.add_argument("--resamples", type=int, default=10)
@@ -31,6 +32,9 @@ a = ap.parse_args()
 dev = "cuda" if torch.cuda.is_available() else "cpu"
 if a.method in BASELINES:
     method = BASELINES[a.method]()
+elif a.method == "mae":
+    from src.methods.mae import MAEInpainter, load_mae
+    method = MAEInpainter(load_mae(a.mae_ckpt, dev), device=dev)
 else:
     from src.diffusion import load_eps_model
     from src.methods.mirror_diffusion import MirrorGuidedRePaint

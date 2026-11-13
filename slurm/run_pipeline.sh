@@ -1,7 +1,7 @@
 #!/bin/bash
 # Runs one pipeline STAGE (several commands in a row, on the same GPU, no re-queueing).
 #   bash slurm/run_pipeline.sh <stage>
-# Stages:  train_ddpm | eval_diffusion
+# Stages:  train_ddpm | eval_diffusion | train_mae | eval_mae
 # Override settings with environment variables, e.g.  N=100 K=3 RESAMPLES=10 bash slurm/run_pipeline.sh eval_diffusion
 # Add new stages (train_mae, train_gan, ...) as new `case` branches when those methods exist.
 set -e
@@ -23,6 +23,16 @@ case "$STAGE" in
           --image-size "$SIZE" --ckpt "$CKPT" --resamples "$RESAMPLES" \
           --save-dir "outputs/samples/${method}_${mask}"
       done
+    done
+    ;;
+  train_mae)    # needs the pretrained weights cached on the login node first (scripts/download_pretrained.py)
+    python scripts/train_mae.py --image-size "$SIZE" --epochs "${EPOCHS:-40}" --batch-size 64 --ckpt "${MAE_CKPT:-checkpoints/mae_128.pt}"
+    ;;
+  eval_mae)
+    for mask in one_sided centre square; do
+      echo "=== mae / $mask ==="
+      python scripts/run_eval.py --method mae --mask "$mask" --n "${N_MAE:-100}" --image-size "$SIZE" \
+        --mae-ckpt "${MAE_CKPT:-checkpoints/mae_128.pt}" --save-dir "outputs/samples/mae_${mask}"
     done
     ;;
   *) echo "unknown stage: $STAGE"; exit 2 ;;
