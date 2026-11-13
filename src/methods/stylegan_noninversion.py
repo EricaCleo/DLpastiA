@@ -1,27 +1,34 @@
 """Method 3: StyleGAN non-inversion, CoModGAN-style (supervised). Fast at test time, stochastic.
 
-Plan: encoder reads (masked image + mask = 4 channels); its output is combined with a style code
-from z ~ N(0,I) (512-d); a StyleGAN-style generator produces the full image.
-Losses: non-saturating adversarial + R1 on D (+ optional LPIPS). Trained on (masked, original) pairs.
-`in_channels` is a parameter so Method 4 reuses this exact model with 8 channels.
+Encoder reads (masked image + mask = 4 channels); its global vector is co-modulated with the style from z ~ N(0,I);
+a StyleGAN2-style generator (modulated convolutions, encoder skips) outputs the full image. Trained on
+(masked, original) pairs: adversarial + R1 on D, plus L1 (hole) and LPIPS. See src/gan/ and scripts/m3_stylegan_noninversion.py.
+Written in plain PyTorch (no custom CUDA ops), trained from scratch at 128x128 under a wall-clock budget.
 """
+import torch
+
+from src.gan import load_generator
+from src.gan.inputs import INPUTS
 from .base import Inpainter
 
 
 class CoModGANInpainter(Inpainter):
     name = "stylegan_noninversion"
     stochastic = True
+    mode = "comod"
 
-    def __init__(self, in_channels=4, z_dim=512, device="cuda"):
-        self.in_channels, self.z_dim = in_channels, z_dim
-        # TODO: encoder + StyleGAN generator + discriminator
+    def __init__(self, G, device="cuda"):
+        self.G, self.device = G.to(device).eval(), device
+        self.build_input = INPUTS[self.mode][0]
 
-    def build_input(self, masked, mask):
-        import torch
-        return torch.cat([masked, mask], dim=1)  # 3 + 1 channels
+    @classmethod
+    def from_ckpt(cls, path, device="cuda"):
+        G, cfg = load_generator(path, device)
+        assert cfg["mode"] == cls.mode, f"checkpoint is mode '{cfg['mode']}', expected '{cls.mode}'"
+        return cls(G, device)
 
-    def train(self, loader, epochs=100):
-        raise NotImplementedError("adv + R1 (+ LPIPS) on (masked, original) pairs")
-
+    @torch.no_grad()
     def fill(self, masked, mask, K=1):
-        raise NotImplementedError
+        masked, mask = masked.to(self.device), mask.to(self.device)
+        inp = self.build_input(masked, mask)
+        return [self.G(inp, torch.randn(masked.shape[0], self.G.z_dim, device=self.device)).clamp(-1, 1) for _ in range(K)]

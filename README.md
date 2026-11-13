@@ -23,7 +23,10 @@ src/data/masks.py            square / one-sided / centre masks, compositing
 src/eval/metrics.py          PSNR, SSIM, LPIPS (hole only), FID, diversity
 src/eval/evaluate.py         shared evaluation loop
 src/diffusion/               DDPM schedule, U-Net (diffusers), resumable training, RePaint schedule
-scripts/train_ddpm.py        train the diffusion model for Methods 5 and 6 (sbatch)
+scripts/m1_mae.py ... m6_*.py   ONE SCRIPT PER METHOD, each with `train` and/or `eval` commands
+scripts/smoke_test.py        tiny CPU test of all six methods: run it before using the cluster GPU
+scripts/train_ddpm.py        (older) diffusion training entry point, kept for queued jobs
+src/gan/                     StyleGAN2-style generator/encoder/discriminator in plain PyTorch + GAN training loop
 src/methods/base.py          Inpainter interface: fill(masked, mask, K)
 src/methods/baselines.py     grey fill, mirror paste (sanity baselines)
 src/eval/results.py          save / load per-method metrics -> comparison table
@@ -46,4 +49,4 @@ python scripts/run_eval.py --method mirror_paste --n 100
 Test masks are fixed by seed, so every method is scored on identical holes.
 
 ## Status
-Done: data pipeline, masks, metrics, eval loop, baselines, one notebook per pipeline, Slurm templates, RePaint sampler (Method 5) and mirror guidance (Method 6), DDPM training script. Tested on CPU with an oracle denoiser and a tiny U-Net; not yet trained on AFHQ. Still stubs: MAE, StyleGAN inversion, StyleGAN non-inversion, mirror-conditioned StyleGAN.
+Done: data pipeline, masks, metrics, eval loop, baselines, one notebook per pipeline, Slurm templates, RePaint sampler (Method 5) and mirror guidance (Method 6), DDPM training script. All six methods are implemented and pass the CPU smoke test (`python scripts/smoke_test.py`). Trained so far: diffusion model (Methods 5/6). MAE and the GANs are written but not yet trained at scale.
