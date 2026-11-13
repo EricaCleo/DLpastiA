@@ -25,6 +25,8 @@ ap.add_argument("--resamples", type=int, default=10)
 ap.add_argument("--lam", type=float, default=0.1)
 ap.add_argument("--K", type=int, default=None)
 ap.add_argument("--batch", type=int, default=8)
+ap.add_argument("--image-size", type=int, default=None, help="evaluation resolution; must match the model (128 for ddpm_128.pt)")
+ap.add_argument("--save-dir", default=None, help="save composited fills (first sample) as PNGs")
 a = ap.parse_args()
 dev = "cuda" if torch.cuda.is_available() else "cpu"
 if a.method in BASELINES:
@@ -40,7 +42,12 @@ else:
     else:
         method = MirrorGuidedRePaint(model, lam=a.lam, adaptive=a.method.endswith("adaptive"), **kw)
         method.name = a.method
-res = evaluate(method, a.mask, a.n, batch_size=a.batch, K=a.K, device=dev, use_lpips=not a.no_lpips)
+from src.data import load_config
+cfg = load_config()
+if a.image_size:
+    cfg["image_size"] = a.image_size
+res = evaluate(method, a.mask, a.n, batch_size=a.batch, K=a.K, device=dev, use_lpips=not a.no_lpips, save_dir=a.save_dir, cfg=cfg)
+res["image_size"] = cfg["image_size"]
 print(a.method, a.mask, res)
 from src.eval import save_result
 save_result(method.name, a.mask, res)
