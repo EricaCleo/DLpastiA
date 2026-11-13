@@ -18,6 +18,7 @@ RUN_CMD="${1:-python scripts/run_eval.py --method mirror_paste --n 100}"
 cd "$PROJECT_DIR"; mkdir -p logs
 START=$(date +%s)
 echo "Job ${SLURM_JOB_ID:-unknown} on $(hostname) | dir $(pwd)"; echo "Cmd: $RUN_CMD"
+echo "Code version: $(git rev-parse --short HEAD 2>/dev/null) $(git log -1 --format=%s 2>/dev/null)"   # which code produced this result
 
 source /etc/profile || true
 command -v module >/dev/null 2>&1 && module load miniforge3 || true
