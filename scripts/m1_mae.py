@@ -19,6 +19,7 @@ t.add_argument("--from-scratch", action="store_true")
 t.add_argument("--ckpt", default="checkpoints/mae_128.pt")
 e = sub.add_parser("eval"); add_eval_args(e)
 e.add_argument("--ckpt", default="checkpoints/mae_128.pt")
+e.add_argument("--name", default=None, help="result name (default: mae), e.g. mae_n48, so it does not overwrite other runs")
 a = ap.parse_args()
 
 if a.cmd == "train":
@@ -35,4 +36,7 @@ if a.cmd == "train":
     train_mae(model, loader, a.ckpt, epochs=a.epochs, lr=a.lr, device=device())
 else:
     from src.methods.mae import MAEInpainter, load_mae
-    run_eval(MAEInpainter(load_mae(a.ckpt, device()), device=device()), a)
+    m = MAEInpainter(load_mae(a.ckpt, device()), device=device())
+    if a.name:
+        m.name = a.name
+    run_eval(m, a)
