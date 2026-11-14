@@ -35,6 +35,21 @@ NAMES = {
     "mirror_04a": "Mirror-conditioned StyleGAN (04a)", "mirror_04b": "Mirror-conditioned StyleGAN + symmetry loss (04b)",
 }
 
+import re
+
+
+def pretty(name):
+    """Full method name for a heading; understands the mirror-sweep folder names (..._l0.05_f0.5_k9_a1)."""
+    if name in NAMES:
+        return NAMES[name]
+    m = re.match(r"mirror_adaptive_uvit_l([\d.]+)_f([\d.]+)_k(\d+)_a(\d)$", name)
+    if m:
+        lam, frac, k, al = m.groups()
+        extra = (", feathered" if int(k) > 0 else "") + (", axis-aligned" if al == "1" else "")
+        return f"Mirror-guided RePaint (U-ViT), strength {lam}, last {round(float(frac) * 100)}% of steps{extra}"
+    return name
+
+
 ap = argparse.ArgumentParser()
 ap.add_argument("--mask", default="one_sided", choices=["square", "one_sided", "centre"])
 ap.add_argument("--methods", nargs="+", required=True, help="sample-folder prefixes, e.g. mae repaint_uvit")
@@ -52,7 +67,7 @@ cfg["image_size"] = a.image_size
 _, test_ds = get_datasets(cfg, mask_type=a.mask)
 idxs = list(range(0, len(test_ds), len(test_ds) // a.n))[: a.n]      # same subset as evaluate()
 S = a.image_size
-labels = ["Masked input (hole in white)"] + [NAMES.get(m, m) for m in a.methods] + ([] if a.no_original else ["Original"])
+labels = ["Masked input (hole in white)"] + [pretty(m) for m in a.methods] + ([] if a.no_original else ["Original"])
 wrapped = [textwrap.wrap(t, width=max(8, S // 6 - 1)) for t in labels]
 head = 12 * max(len(w) for w in wrapped) + 8
 cols = labels
