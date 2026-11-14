@@ -66,12 +66,12 @@ case "$STAGE" in
     done ;;
   sweep_mirror)     # mirror-guidance strength / schedule sweep on the U-ViT model, one-sided holes (the case where the mirror should help)
     U="${UVIT_CKPT:-checkpoints/uvit_128.pt}"
-    for cfg in "0.02 0.5" "0.05 0.5" "0.02 0.2" "0.05 0.2" "0.1 0.2"; do
-      set -- $cfg; LAM=$1; FRAC=$2
-      echo "=== mirror adaptive, lam=$LAM guide_frac=$FRAC ==="
-      python scripts/m6_mirror_guided_repaint.py eval --ckpt "$U" --adaptive --lam "$LAM" --guide-frac "$FRAC" \
-        --name "mirror_adaptive_uvit_l${LAM}_f${FRAC}" --mask one_sided --n "$N" --K "$K" --image-size "$SIZE" \
-        --resamples "$RESAMPLES" --save-dir "outputs/samples/mirror_adaptive_uvit_l${LAM}_f${FRAC}_one_sided"
+    for cfg in "0.02 0.5 0" "0.05 0.5 0" "0.02 0.2 0" "0.05 0.2 0" "0.05 0.5 9" "0.1 0.3 9" "0.2 0.3 9"; do
+      set -- $cfg; LAM=$1; FRAC=$2; FEA=$3
+      echo "=== mirror adaptive, lam=$LAM guide_frac=$FRAC feather=$FEA ==="
+      python scripts/m6_mirror_guided_repaint.py eval --ckpt "$U" --adaptive --lam "$LAM" --guide-frac "$FRAC" --feather "$FEA" \
+        --name "mirror_adaptive_uvit_l${LAM}_f${FRAC}_k${FEA}" --mask one_sided --n "$N" --K "$K" --image-size "$SIZE" \
+        --resamples "$RESAMPLES" --save-dir "outputs/samples/mirror_adaptive_uvit_l${LAM}_f${FRAC}_k${FEA}_one_sided"
     done ;;
   *) echo "unknown stage: $STAGE"; exit 2 ;;
 esac
