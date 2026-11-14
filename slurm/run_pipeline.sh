@@ -1,7 +1,7 @@
 #!/bin/bash
 # Runs one pipeline STAGE (several commands in a row, on the same GPU, no re-queueing).
 #   bash slurm/run_pipeline.sh <stage>
-# Stages:  train_ddpm | eval_diffusion | train_mae | eval_mae | train_g_uncond | train_comod | train_mirror_04a | train_mirror_04b | eval_gan | train_uvit | eval_uvit
+# Stages:  train_ddpm | eval_diffusion | train_mae | eval_mae | train_g_uncond | train_comod | train_mirror_04a | train_mirror_04b | eval_gan | train_uvit | eval_uvit | sweep_mirror
 # Override settings with environment variables, e.g.  N=100 K=3 RESAMPLES=10 bash slurm/run_pipeline.sh eval_diffusion
 # Add new stages (train_mae, train_gan, ...) as new `case` branches when those methods exist.
 set -e
@@ -63,6 +63,15 @@ case "$STAGE" in
       python scripts/m5_repaint.py eval --ckpt "$U" --name repaint_uvit --mask "$mask" --n "$N" --K "$K" --image-size "$SIZE" --resamples "$RESAMPLES" --save-dir "outputs/samples/repaint_uvit_${mask}"
       python scripts/m6_mirror_guided_repaint.py eval --ckpt "$U" --fixed --name mirror_repaint_fixed_uvit --mask "$mask" --n "$N" --K "$K" --image-size "$SIZE" --resamples "$RESAMPLES" --save-dir "outputs/samples/mirror_fixed_uvit_${mask}"
       python scripts/m6_mirror_guided_repaint.py eval --ckpt "$U" --adaptive --name mirror_repaint_adaptive_uvit --mask "$mask" --n "$N" --K "$K" --image-size "$SIZE" --resamples "$RESAMPLES" --save-dir "outputs/samples/mirror_adaptive_uvit_${mask}"
+    done ;;
+  sweep_mirror)     # mirror-guidance strength / schedule sweep on the U-ViT model, one-sided holes (the case where the mirror should help)
+    U="${UVIT_CKPT:-checkpoints/uvit_128.pt}"
+    for cfg in "0.02 0.5" "0.05 0.5" "0.02 0.2" "0.05 0.2" "0.1 0.2"; do
+      set -- $cfg; LAM=$1; FRAC=$2
+      echo "=== mirror adaptive, lam=$LAM guide_frac=$FRAC ==="
+      python scripts/m6_mirror_guided_repaint.py eval --ckpt "$U" --adaptive --lam "$LAM" --guide-frac "$FRAC" \
+        --name "mirror_adaptive_uvit_l${LAM}_f${FRAC}" --mask one_sided --n "$N" --K "$K" --image-size "$SIZE" \
+        --resamples "$RESAMPLES" --save-dir "outputs/samples/mirror_adaptive_uvit_l${LAM}_f${FRAC}_one_sided"
     done ;;
   *) echo "unknown stage: $STAGE"; exit 2 ;;
 esac

@@ -33,9 +33,13 @@ def mirror_guidance(x0_hat, x_known, hole, lam=0.1, adaptive=True):
 class MirrorGuidedRePaint(RePaint):
     name = "mirror_guided_repaint"
 
-    def __init__(self, model, lam=0.1, adaptive=True, **kw):
+    def __init__(self, model, lam=0.1, adaptive=True, guide_frac=1.0, **kw):
+        """guide_frac: guidance is applied only in the LAST fraction of the schedule (low-noise levels t < guide_frac * steps).
+        1.0 = every step (strong: the per-step pulls accumulate over ~1000 steps); small values (0.2-0.5) = light touch."""
         super().__init__(model, **kw)
-        self.lam, self.adaptive = lam, adaptive
+        self.lam, self.adaptive, self.guide_frac = lam, adaptive, guide_frac
 
-    def guide(self, x0_hat, gt, keep):
+    def guide(self, x0_hat, gt, keep, t=None):
+        if t is not None and t >= self.guide_frac * self.diff.num_steps:
+            return x0_hat
         return mirror_guidance(x0_hat, gt, 1 - keep, self.lam, self.adaptive)

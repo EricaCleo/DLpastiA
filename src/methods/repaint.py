@@ -25,8 +25,8 @@ class RePaint(Inpainter):
         self.schedule = repaint_schedule(self.diff.num_steps, jump_length, resamples)
         self.clip, self.device = clip, device
 
-    def guide(self, x0_hat, gt, keep):
-        """Hook to modify the model's clean-image estimate each step (identity for plain RePaint)."""
+    def guide(self, x0_hat, gt, keep, t=None):
+        """Hook to modify the model's clean-image estimate each step (identity for plain RePaint). t = current level."""
         return x0_hat
 
     def _reverse_step(self, x, t, gt, keep):
@@ -37,7 +37,7 @@ class RePaint(Inpainter):
         x0 = (x - (1 - ab).sqrt() * eps) / ab.sqrt()
         if self.clip:
             x0 = x0.clamp(-1, 1)
-        x0 = self.guide(x0, gt, keep)
+        x0 = self.guide(x0, gt, keep, t)
         mean = d.post_c1[t] * x0 + d.post_c2[t] * x
         noise = torch.randn_like(x) if t > 0 else torch.zeros_like(x)
         unknown = mean + (0.5 * d.post_logvar[t]).exp() * noise

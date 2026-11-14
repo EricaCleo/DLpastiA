@@ -14,7 +14,8 @@ e.add_argument("--ckpt", default="checkpoints/ddpm_128.pt")
 e.add_argument("--steps", type=int, default=250)
 e.add_argument("--jump-length", type=int, default=10)
 e.add_argument("--resamples", type=int, default=10)
-e.add_argument("--lam", type=float, default=0.1, help="guidance strength")
+e.add_argument("--lam", type=float, default=0.1, help="guidance strength per step")
+e.add_argument("--guide-frac", type=float, default=1.0, help="apply guidance only in the last fraction of the steps (1.0 = all steps)")
 g = e.add_mutually_exclusive_group()
 g.add_argument("--adaptive", action="store_true", help="scale guidance by the face's symmetry score (default)")
 g.add_argument("--fixed", action="store_true", help="constant guidance strength")
@@ -26,7 +27,7 @@ if a.cmd == "train":
 from src.diffusion import load_eps_model
 from src.methods.mirror_diffusion import MirrorGuidedRePaint
 adaptive = not a.fixed
-m = MirrorGuidedRePaint(load_eps_model(a.ckpt, device()), lam=a.lam, adaptive=adaptive, steps=a.steps,
+m = MirrorGuidedRePaint(load_eps_model(a.ckpt, device()), lam=a.lam, adaptive=adaptive, guide_frac=a.guide_frac, steps=a.steps,
                         jump_length=a.jump_length, resamples=a.resamples, device=device())
 m.name = a.name or ("mirror_repaint_adaptive" if adaptive else "mirror_repaint_fixed")
 run_eval(m, a)
