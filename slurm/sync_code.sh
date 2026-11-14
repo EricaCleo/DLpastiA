@@ -22,7 +22,8 @@ echo "[zip] git failed; trying the branch zip"
 T="$(mktemp -d)"
 if curl -L --retry 3 --max-time 180 -o "$T/b.zip" "https://github.com/$REPO/archive/refs/heads/$BRANCH.zip" && unzip -q "$T/b.zip" -d "$T"; then
   D="$(ls -d "$T"/*/ | head -1)"
-  cp -r "$D"/scripts "$D"/slurm "$D"/src "$D"/configs "$D"/notebooks "$D"/README.md "$D"/requirements.txt .
+  # --remove-destination replaces each file with a new one (a stage that is running keeps reading its old copy safely)
+  cp -r --remove-destination "$D"/scripts "$D"/slurm "$D"/src "$D"/configs "$D"/notebooks "$D"/README.md "$D"/requirements.txt .
   echo "SYNCED via zip (the files are current, but git still shows the old commit)"
   exit 0
 fi

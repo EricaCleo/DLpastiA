@@ -10,6 +10,38 @@ CKPT="${CKPT:-checkpoints/ddpm_128.pt}"
 SIZE="${SIZE:-128}"
 N="${N:-48}"; K="${K:-3}"; RESAMPLES="${RESAMPLES:-5}"; MAX_STEPS="${MAX_STEPS:-300000}"
 
+# ---- locks: let two jobs share the GAN work without ever training the same model at the same time ----
+# A GAN training stage takes a lock (checkpoints/.lock_<model>.d, owner = job id). If another job holds it, we wait; when
+# that job has finished, our stage resumes the finished checkpoint, sees the budget is used up, and ends at once.
+# Stale locks (owner job no longer in the queue) are removed. eval_gan waits until NO training is running.
+POLL="${LOCK_POLL:-120}"
+lock_alive() {   # 0 = the lock is held by a job that still exists (or we cannot tell); 1 = clearly stale
+  local owner out rc; owner="$(cat "$1/owner" 2>/dev/null)"
+  [ -z "$owner" ] && return 0                              # owner file not written yet: lock is just being taken
+  [ "$owner" = "local" ] && return 0
+  command -v squeue >/dev/null 2>&1 || return 0            # cannot ask Slurm: assume alive (never steal a lock by mistake)
+  out="$(squeue -j "$owner" -h 2>&1)"; rc=$?
+  echo "$out" | grep -qi "invalid job id" && return 1      # Slurm says the job does not exist any more
+  [ $rc -eq 0 ] && [ -z "$out" ] && return 1               # job is not in the queue any more
+  return 0                                                 # running/pending, or any other error: assume alive
+}
+acquire_lock() {  # acquire_lock <model name>
+  LOCKDIR="checkpoints/.lock_$1.d"; mkdir -p checkpoints
+  until mkdir "$LOCKDIR" 2>/dev/null; do
+    if ! lock_alive "$LOCKDIR"; then echo "[lock] removing stale lock of $1"; rm -rf "$LOCKDIR"; continue; fi
+    echo "[lock] $1 is being trained by job $(cat "$LOCKDIR/owner" 2>/dev/null); waiting"; sleep "$POLL"
+  done
+  echo "${SLURM_JOB_ID:-local}" > "$LOCKDIR/owner"
+  trap 'rm -rf "$LOCKDIR"' EXIT INT TERM
+  echo "[lock] took the lock for $1"
+}
+wait_all_locks() {
+  while ls -d checkpoints/.lock_*.d >/dev/null 2>&1; do
+    for d in checkpoints/.lock_*.d; do lock_alive "$d" || { echo "[lock] removing stale $d"; rm -rf "$d"; }; done
+    if ls -d checkpoints/.lock_*.d >/dev/null 2>&1; then echo "[lock] other trainings still running; waiting"; sleep "$POLL"; fi
+  done
+}
+
 case "$STAGE" in
   train_ddpm)   # resumes automatically from $CKPT if it exists; ends immediately if already at MAX_STEPS
     python scripts/train_ddpm.py --image-size "$SIZE" --batch-size 16 --amp \
@@ -36,14 +68,19 @@ case "$STAGE" in
     done
     ;;
   train_g_uncond)   # Method 2: unconditional generator (budget HOURS, resumable)
+    acquire_lock g_uncond
     python scripts/m2_stylegan_inversion.py train --image-size "$SIZE" --max-hours "${HOURS:-22}" --ckpt checkpoints/g_uncond_128.pt ;;
   train_comod)      # Method 3
+    acquire_lock comod
     python scripts/m3_stylegan_noninversion.py train --image-size "$SIZE" --max-hours "${HOURS:-22}" --ckpt checkpoints/comod_128.pt ;;
   train_mirror_04a) # Method 4, mirror input only
+    acquire_lock mirror_04a
     python scripts/m4_mirror_conditioned.py train --image-size "$SIZE" --max-hours "${HOURS:-22}" --ckpt checkpoints/mirror_04a_128.pt ;;
   train_mirror_04b) # Method 4, mirror input + symmetry loss
+    acquire_lock mirror_04b
     python scripts/m4_mirror_conditioned.py train --symmetry "${SYM:-0.1}" --image-size "$SIZE" --max-hours "${HOURS:-22}" --ckpt checkpoints/mirror_04b_128.pt ;;
   eval_gan)         # Methods 2, 3, 4 on three mask types
+    wait_all_locks
     for mask in one_sided centre square; do
       echo "=== stylegan_inversion / $mask ==="
       python scripts/m2_stylegan_inversion.py eval --ckpt checkpoints/g_uncond_128.pt --mask "$mask" --n "${N_INV:-48}" --K 3 --image-size "$SIZE" --save-dir "outputs/samples/stylegan_inversion_${mask}"
