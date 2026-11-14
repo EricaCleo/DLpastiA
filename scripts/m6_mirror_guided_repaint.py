@@ -15,6 +15,10 @@ e.add_argument("--steps", type=int, default=250)
 e.add_argument("--jump-length", type=int, default=10)
 e.add_argument("--resamples", type=int, default=10)
 e.add_argument("--lam", type=float, default=0.1, help="guidance strength per step")
+e.add_argument("--align", action="store_true", help="shift the mirror axis per face to match its own symmetry axis")
+e.add_argument("--max-shift", type=int, default=16, help="largest axis shift searched, in pixels")
+e.add_argument("--s-lo", type=float, default=0.0, help="symmetry score that maps to weight 0 (real faces: about 0.65)")
+e.add_argument("--s-hi", type=float, default=1.0, help="symmetry score that maps to weight 1 (real faces: about 0.9)")
 e.add_argument("--feather", type=int, default=0, help="blur the guidance mask by this many pixels (e.g. 9) to avoid hard seams; 0 = off")
 e.add_argument("--guide-frac", type=float, default=1.0, help="apply guidance only in the last fraction of the steps (1.0 = all steps)")
 g = e.add_mutually_exclusive_group()
@@ -28,7 +32,7 @@ if a.cmd == "train":
 from src.diffusion import load_eps_model
 from src.methods.mirror_diffusion import MirrorGuidedRePaint
 adaptive = not a.fixed
-m = MirrorGuidedRePaint(load_eps_model(a.ckpt, device()), lam=a.lam, adaptive=adaptive, guide_frac=a.guide_frac, feather=a.feather, steps=a.steps,
+m = MirrorGuidedRePaint(load_eps_model(a.ckpt, device()), lam=a.lam, adaptive=adaptive, guide_frac=a.guide_frac, feather=a.feather, align=a.align, max_shift=a.max_shift, s_lo=a.s_lo, s_hi=a.s_hi, steps=a.steps,
                         jump_length=a.jump_length, resamples=a.resamples, device=device())
 m.name = a.name or ("mirror_repaint_adaptive" if adaptive else "mirror_repaint_fixed")
 run_eval(m, a)

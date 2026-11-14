@@ -64,14 +64,17 @@ case "$STAGE" in
       python scripts/m6_mirror_guided_repaint.py eval --ckpt "$U" --fixed --name mirror_repaint_fixed_uvit --mask "$mask" --n "$N" --K "$K" --image-size "$SIZE" --resamples "$RESAMPLES" --save-dir "outputs/samples/mirror_fixed_uvit_${mask}"
       python scripts/m6_mirror_guided_repaint.py eval --ckpt "$U" --adaptive --name mirror_repaint_adaptive_uvit --mask "$mask" --n "$N" --K "$K" --image-size "$SIZE" --resamples "$RESAMPLES" --save-dir "outputs/samples/mirror_adaptive_uvit_${mask}"
     done ;;
-  sweep_mirror)     # mirror-guidance strength / schedule sweep on the U-ViT model, one-sided holes (the case where the mirror should help)
+  sweep_mirror)     # mirror-guidance sweep on the U-ViT model, one-sided holes (where the mirror should help most)
+    # each setting: lam frac feather align   (align=1 also uses the per-face axis search and the rescaled symmetry weight)
     U="${UVIT_CKPT:-checkpoints/uvit_128.pt}"
-    for cfg in "0.02 0.5 0" "0.05 0.5 0" "0.02 0.2 0" "0.05 0.2 0" "0.05 0.5 9" "0.1 0.3 9" "0.2 0.3 9"; do
-      set -- $cfg; LAM=$1; FRAC=$2; FEA=$3
-      echo "=== mirror adaptive, lam=$LAM guide_frac=$FRAC feather=$FEA ==="
-      python scripts/m6_mirror_guided_repaint.py eval --ckpt "$U" --adaptive --lam "$LAM" --guide-frac "$FRAC" --feather "$FEA" \
-        --name "mirror_adaptive_uvit_l${LAM}_f${FRAC}_k${FEA}" --mask one_sided --n "$N" --K "$K" --image-size "$SIZE" \
-        --resamples "$RESAMPLES" --save-dir "outputs/samples/mirror_adaptive_uvit_l${LAM}_f${FRAC}_k${FEA}_one_sided"
+    for cfg in "0.02 0.5 0 0" "0.05 0.5 0 0" "0.02 0.2 0 0" "0.05 0.2 0 0" "0.05 0.5 9 0" "0.1 0.3 9 0" \
+               "0.05 0.5 9 1" "0.1 0.3 9 1" "0.2 0.3 9 1" "0.1 1.0 9 1"; do
+      set -- $cfg; LAM=$1; FRAC=$2; FEA=$3; ALN=$4
+      EXTRA=""; [ "$ALN" = "1" ] && EXTRA="--align --s-lo 0.65 --s-hi 0.9"
+      echo "=== mirror adaptive, lam=$LAM guide_frac=$FRAC feather=$FEA align=$ALN ==="
+      python scripts/m6_mirror_guided_repaint.py eval --ckpt "$U" --adaptive --lam "$LAM" --guide-frac "$FRAC" --feather "$FEA" $EXTRA \
+        --name "mirror_adaptive_uvit_l${LAM}_f${FRAC}_k${FEA}_a${ALN}" --mask one_sided --n "$N" --K "$K" --image-size "$SIZE" \
+        --resamples "$RESAMPLES" --save-dir "outputs/samples/mirror_adaptive_uvit_l${LAM}_f${FRAC}_k${FEA}_a${ALN}_one_sided"
     done ;;
   *) echo "unknown stage: $STAGE"; exit 2 ;;
 esac
