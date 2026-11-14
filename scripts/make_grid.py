@@ -6,6 +6,12 @@ the original from the same fixed test masks.
     python scripts/make_grid.py --mask one_sided --methods mae --rows 8 --separate         # one file per image (masked, result)
     python scripts/make_grid.py --mask one_sided --methods mae repaint_uvit mirror_repaint_adaptive_uvit --rows 8
 Must use the same --n / --image-size as the evaluation runs (defaults: 100 images, 128 px).
+
+File names say what is in them, e.g.
+    outputs/grid_one_sided__masked+mae__n100__no-original.png
+    outputs/grid_square__masked+mae_n48+repaint_uvit+mirror_fixed_uvit+mirror_adaptive_uvit+original__n48.png
+and with --separate:  outputs/pairs/<mask>/<mask>__<row>__masked.png , <mask>__<row>__<method>.png
+Column headings use the full method names (see NAMES).
 """
 import argparse
 import sys
@@ -13,9 +19,21 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+import textwrap
+
 from PIL import Image, ImageDraw
 
 from src.data import get_datasets, load_config, to_image
+
+NAMES = {
+    "mae": "MAE (self-supervised ViT)", "mae_n48": "MAE (self-supervised ViT)",
+    "repaint_uvit": "RePaint (U-ViT)",
+    "mirror_fixed_uvit": "Mirror-guided RePaint, fixed (U-ViT)", "mirror_repaint_fixed_uvit": "Mirror-guided RePaint, fixed (U-ViT)",
+    "mirror_adaptive_uvit": "Mirror-guided RePaint, adaptive (U-ViT)", "mirror_repaint_adaptive_uvit": "Mirror-guided RePaint, adaptive (U-ViT)",
+    "grey_fill": "Grey fill (baseline)", "mirror_paste": "Mirror paste (baseline)",
+    "stylegan_inversion": "StyleGAN inversion", "stylegan_noninversion": "StyleGAN non-inversion",
+    "mirror_04a": "Mirror-conditioned StyleGAN (04a)", "mirror_04b": "Mirror-conditioned StyleGAN + symmetry loss (04b)",
+}
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--mask", default="one_sided", choices=["square", "one_sided", "centre"])
@@ -33,12 +51,16 @@ cfg = load_config()
 cfg["image_size"] = a.image_size
 _, test_ds = get_datasets(cfg, mask_type=a.mask)
 idxs = list(range(0, len(test_ds), len(test_ds) // a.n))[: a.n]      # same subset as evaluate()
-S, head = a.image_size, 18
-cols = ["masked input"] + a.methods + ([] if a.no_original else ["original"])
+S = a.image_size
+labels = ["Masked input (hole in white)"] + [NAMES.get(m, m) for m in a.methods] + ([] if a.no_original else ["Original"])
+wrapped = [textwrap.wrap(t, width=max(8, S // 6 - 1)) for t in labels]
+head = 12 * max(len(w) for w in wrapped) + 8
+cols = labels
 canvas = Image.new("RGB", (S * len(cols), head + S * a.rows), "white")
 draw = ImageDraw.Draw(canvas)
-for c, name in enumerate(cols):
-    draw.text((c * S + 4, 3), name[:S // 6], fill="black")
+for c, lines in enumerate(wrapped):
+    for i, line in enumerate(lines):
+        draw.text((c * S + 4, 4 + 12 * i), line, fill="black")
 missing = set()
 for r in range(a.rows):
     x, m, xm = test_ds[idxs[r]]
@@ -55,12 +77,13 @@ for r in range(a.rows):
     if a.separate:
         d = ROOT / "outputs" / "pairs" / a.mask
         d.mkdir(parents=True, exist_ok=True)
-        tiles[0].save(d / f"{r:02d}_masked.png")
+        tiles[0].save(d / f"{a.mask}__{r:02d}__masked.png")
         for meth, t in zip(a.methods, tiles[1:]):
-            t.save(d / f"{r:02d}_{meth}.png")
+            t.save(d / f"{a.mask}__{r:02d}__{meth}.png")
     for c, t in enumerate(tiles):
         canvas.paste(t, (c * S, head + r * S))
-out = a.out or str(ROOT / "outputs" / f"grid_{a.mask}.png")
+parts = ["masked"] + a.methods + ([] if a.no_original else ["original"])
+out = a.out or str(ROOT / "outputs" / f"grid_{a.mask}__{'+'.join(parts)}__n{a.n}{'__no-original' if a.no_original else ''}.png")
 Path(out).parent.mkdir(parents=True, exist_ok=True)
 canvas.save(out)
 print("saved", out, f"({canvas.size[0]}x{canvas.size[1]})")
