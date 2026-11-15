@@ -45,6 +45,7 @@ def add_gan_train_args(p, ckpt):
     p.add_argument("--lpips", type=float, default=1.0)
     p.add_argument("--workers", type=int, default=4)
     p.add_argument("--base", type=int, default=16384, help="channel base (width); smaller = faster/lighter")
+    p.add_argument("--max-steps", type=int, default=None, help="also stop at this training step (to give models an EQUAL number of steps); resumes from the checkpoint")
     p.add_argument("--no-flip", action="store_true")
     p.add_argument("--ckpt", default=ckpt)
 
@@ -63,4 +64,4 @@ def gan_train(mode, a, sym_w=0.0):
           "| budget h", a.max_hours, "| sym", sym_w, flush=True)
     sample_dir = Path(a.ckpt).with_suffix("").as_posix() + "_samples"
     train_gan(gcfg, loader, a.ckpt, max_hours=a.max_hours, device=dev, lr=a.lr, r1_gamma=a.r1, l1_w=a.l1,
-              lpips_w=a.lpips, sym_w=sym_w, flip=not a.no_flip, sample_dir=sample_dir)
+              lpips_w=a.lpips, sym_w=sym_w, flip=not a.no_flip, sample_dir=sample_dir, max_steps=a.max_steps)
