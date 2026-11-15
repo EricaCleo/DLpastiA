@@ -9,6 +9,9 @@ STAGE="${1:?usage: bash slurm/run_pipeline.sh <train_ddpm|eval_diffusion>}"
 CKPT="${CKPT:-checkpoints/ddpm_128.pt}"
 SIZE="${SIZE:-128}"
 N="${N:-48}"; K="${K:-3}"; RESAMPLES="${RESAMPLES:-5}"; MAX_STEPS="${MAX_STEPS:-300000}"
+# Methods 3, 4a and 4b must get the SAME number of training steps for a fair ablation: method 3 stopped at this step
+# (18 h budget). The mirror models train more slowly per hour, so they are brought up to this step afterwards.
+TARGET_STEPS="${TARGET_STEPS:-128339}"
 
 # ---- locks: let two jobs share the GAN work without ever training the same model at the same time ----
 # A GAN training stage takes a lock (checkpoints/.lock_<model>.d, owner = job id). If another job holds it, we wait; when
@@ -73,12 +76,17 @@ case "$STAGE" in
   train_comod)      # Method 3
     acquire_lock comod
     python scripts/m3_stylegan_noninversion.py train --image-size "$SIZE" --max-hours "${HOURS:-22}" --ckpt checkpoints/comod_128.pt ;;
-  train_mirror_04a) # Method 4, mirror input only
+  train_mirror_04a) # Method 4a (mirror input only): stops at the hour budget OR at TARGET_STEPS, whichever comes first
     acquire_lock mirror_04a
-    python scripts/m4_mirror_conditioned.py train --image-size "$SIZE" --max-hours "${HOURS:-22}" --ckpt checkpoints/mirror_04a_128.pt ;;
-  train_mirror_04b) # Method 4, mirror input + symmetry loss
+    python scripts/m4_mirror_conditioned.py train --image-size "$SIZE" --max-hours "${HOURS:-22}" --max-steps "$TARGET_STEPS" --ckpt checkpoints/mirror_04a_128.pt ;;
+  train_mirror_04b) # Method 4b (mirror input + symmetry loss).
+    # (1) first bring 04a up to TARGET_STEPS (it stopped on its hour budget with fewer steps than method 3); resumes the checkpoint
+    acquire_lock mirror_04a
+    python scripts/m4_mirror_conditioned.py train --image-size "$SIZE" --max-hours 200 --max-steps "$TARGET_STEPS" --ckpt checkpoints/mirror_04a_128.pt
+    rm -rf "$LOCKDIR"; trap - EXIT INT TERM
+    # (2) then 04b itself, also up to TARGET_STEPS
     acquire_lock mirror_04b
-    python scripts/m4_mirror_conditioned.py train --symmetry "${SYM:-0.1}" --image-size "$SIZE" --max-hours "${HOURS:-22}" --ckpt checkpoints/mirror_04b_128.pt ;;
+    python scripts/m4_mirror_conditioned.py train --symmetry "${SYM:-0.1}" --image-size "$SIZE" --max-hours 200 --max-steps "$TARGET_STEPS" --ckpt checkpoints/mirror_04b_128.pt ;;
   eval_gan)         # Methods 2, 3, 4 on three mask types
     wait_all_locks
     for mask in one_sided centre square; do
