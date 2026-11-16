@@ -1,9 +1,14 @@
 """Each method notebook saves its metrics to outputs/results/<method>__<mask>.json;
 07_results.ipynb loads them all into one comparison table."""
 import json
+import os
 from pathlib import Path
 
-DIR = Path(__file__).resolve().parents[2] / "outputs" / "results"
+ROOT = Path(__file__).resolve().parents[2]
+# RESULTS_DIR=outputs/results_final keeps the final runs apart from the earlier small runs
+DIR = Path(os.environ["RESULTS_DIR"]) if os.environ.get("RESULTS_DIR") else ROOT / "outputs" / "results"
+if not DIR.is_absolute():
+    DIR = ROOT / DIR
 
 
 def save_result(method, mask_type, res, extra=None):

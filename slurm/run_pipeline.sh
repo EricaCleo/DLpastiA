@@ -1,7 +1,7 @@
 #!/bin/bash
 # Runs one pipeline STAGE (several commands in a row, on the same GPU, no re-queueing).
 #   bash slurm/run_pipeline.sh <stage>
-# Stages:  train_ddpm | eval_diffusion | train_mae | eval_mae | train_g_uncond | train_comod | train_mirror_04a | train_mirror_04b | eval_gan | train_uvit | eval_uvit | sweep_mirror
+# Stages:  train_ddpm | eval_diffusion | train_mae | eval_mae | train_g_uncond | train_comod | train_mirror_04a | train_mirror_04b | eval_gan | train_uvit | eval_uvit | sweep_mirror | train_mirror_04c | final_eval
 # Override settings with environment variables, e.g.  N=100 K=3 RESAMPLES=10 bash slurm/run_pipeline.sh eval_diffusion
 # Add new stages (train_mae, train_gan, ...) as new `case` branches when those methods exist.
 set -e
@@ -120,6 +120,41 @@ case "$STAGE" in
       python scripts/m6_mirror_guided_repaint.py eval --ckpt "$U" --adaptive --lam "$LAM" --guide-frac "$FRAC" --feather "$FEA" $EXTRA \
         --name "mirror_adaptive_uvit_l${LAM}_f${FRAC}_k${FEA}_a${ALN}" --mask one_sided --n "$N" --K "$K" --image-size "$SIZE" \
         --resamples "$RESAMPLES" --save-dir "outputs/samples/mirror_adaptive_uvit_l${LAM}_f${FRAC}_k${FEA}_a${ALN}_one_sided"
+    done ;;
+  train_mirror_04c) # Method 4c: mirror input aligned to the face's own symmetry axis; same number of steps as 3 / 4a / 4b
+    acquire_lock mirror_04c
+    python scripts/m4_mirror_conditioned.py train --aligned --image-size "$SIZE" --max-hours 200 --max-steps "$TARGET_STEPS" --ckpt checkpoints/mirror_04c_128.pt
+    rm -rf "$LOCKDIR"; trap - EXIT INT TERM
+    for mask in one_sided centre square; do   # small run (same 48 faces as the other methods, for the pictures) + final run
+      echo "=== mirror_04c / $mask (48 faces) ==="
+      python scripts/m4_mirror_conditioned.py eval --ckpt checkpoints/mirror_04c_128.pt --name mirror_04c --mask "$mask" --n 48 --K 3 --image-size "$SIZE" --save-dir "outputs/samples/mirror_04c_${mask}"
+      echo "=== mirror_04c / $mask (final) ==="
+      RESULTS_DIR=outputs/results_final python scripts/m4_mirror_conditioned.py eval --ckpt checkpoints/mirror_04c_128.pt --name mirror_04c --mask "$mask" --n "${N_FAST:-1500}" --K 3 --batch 32 --image-size "$SIZE" --save-dir "outputs/samples_final/mirror_04c_${mask}"
+    done ;;
+  final_eval)       # FINAL numbers for the report: fast methods on all test faces, slow methods on N_SLOW evenly spread faces.
+    # Results go to outputs/results_final (with per-face values for scripts/compare_paired.py). A finished result is
+    # skipped, so the job can simply be submitted again if it hits its time limit.
+    export RESULTS_DIR=outputs/results_final
+    NF="${N_FAST:-1500}"; NS="${N_SLOW:-300}"; U="${UVIT_CKPT:-checkpoints/uvit_128.pt}"; S=outputs/samples_final
+    run() {   # run <result name> <mask> <command...>
+      local name="$1" mask="$2"; shift 2
+      if [ -f "$RESULTS_DIR/${name}__${mask}.json" ]; then echo "=== $name / $mask: already done, skipped ==="; return 0; fi
+      echo "=== $name / $mask ==="; "$@"
+    }
+    for mask in one_sided centre square; do   # fast methods first
+      for b in grey_fill mirror_paste; do
+        run "$b" "$mask" python scripts/run_eval.py --method "$b" --mask "$mask" --n "$NF" --image-size "$SIZE" --save-dir "$S/${b}_${mask}"
+      done
+      run mae "$mask" python scripts/m1_mae.py eval --ckpt "${MAE_CKPT:-checkpoints/mae_128.pt}" --mask "$mask" --n "$NF" --batch 32 --image-size "$SIZE" --save-dir "$S/mae_${mask}"
+      run stylegan_noninversion "$mask" python scripts/m3_stylegan_noninversion.py eval --ckpt checkpoints/comod_128.pt --mask "$mask" --n "$NF" --K 3 --batch 32 --image-size "$SIZE" --save-dir "$S/stylegan_noninversion_${mask}"
+      for v in 04a 04b; do
+        run "mirror_$v" "$mask" python scripts/m4_mirror_conditioned.py eval --ckpt "checkpoints/mirror_${v}_128.pt" --name "mirror_$v" --mask "$mask" --n "$NF" --K 3 --batch 32 --image-size "$SIZE" --save-dir "$S/mirror_${v}_${mask}"
+      done
+    done
+    for mask in one_sided centre square; do   # slow methods
+      run stylegan_inversion "$mask" python scripts/m2_stylegan_inversion.py eval --ckpt checkpoints/g_uncond_128.pt --mask "$mask" --n "$NS" --K 3 --image-size "$SIZE" --save-dir "$S/stylegan_inversion_${mask}"
+      run repaint_uvit "$mask" python scripts/m5_repaint.py eval --ckpt "$U" --name repaint_uvit --mask "$mask" --n "$NS" --K "$K" --image-size "$SIZE" --resamples "$RESAMPLES" --save-dir "$S/repaint_uvit_${mask}"
+      run mirror_guided_repaint_uvit "$mask" python scripts/m6_mirror_guided_repaint.py eval --ckpt "$U" --adaptive --lam 0.02 --guide-frac 0.2 --name mirror_guided_repaint_uvit --mask "$mask" --n "$NS" --K "$K" --image-size "$SIZE" --resamples "$RESAMPLES" --save-dir "$S/mirror_guided_repaint_uvit_${mask}"
     done ;;
   *) echo "unknown stage: $STAGE"; exit 2 ;;
 esac

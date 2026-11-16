@@ -52,6 +52,6 @@ if a.image_size:
     cfg["image_size"] = a.image_size
 res = evaluate(method, a.mask, a.n, batch_size=a.batch, K=a.K, device=dev, use_lpips=not a.no_lpips, save_dir=a.save_dir, cfg=cfg)
 res["image_size"] = cfg["image_size"]
-print(a.method, a.mask, res)
+print(a.method, a.mask, {k: v for k, v in res.items() if k not in ("per_image", "indices")})
 from src.eval import save_result
 save_result(method.name, a.mask, res)

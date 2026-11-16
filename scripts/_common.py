@@ -30,7 +30,7 @@ def run_eval(method, a):
     res = evaluate(method, a.mask, a.n, batch_size=a.batch, K=a.K, device=device(), use_lpips=not a.no_lpips,
                    save_dir=a.save_dir, cfg=cfg)
     res["image_size"] = a.image_size
-    print(method.name, a.mask, res)
+    print(method.name, a.mask, {k: v for k, v in res.items() if k not in ("per_image", "indices")})
     save_result(method.name, a.mask, res)
     return res
 

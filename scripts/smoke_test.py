@@ -120,7 +120,7 @@ def gan_loader():
 @check("methods 3/4 GAN train (comod, mirror 04a, mirror 04b with symmetry) + resume")
 def _():
     from src.gan import train_gan
-    for mode, sym, name in [("comod", 0.0, "comod"), ("mirror", 0.0, "m04a"), ("mirror", 0.1, "m04b")]:
+    for mode, sym, name in [("comod", 0.0, "comod"), ("mirror", 0.0, "m04a"), ("mirror", 0.1, "m04b"), ("mirror_aligned", 0.0, "m04c")]:
         ck = TMP / f"{name}.pt"
         train_gan(gan_cfg(mode), gan_loader(), ck, device="cpu", lpips_w=1.0 if a.lpips else 0.0, sym_w=sym,
                   max_steps=3, save_every=3, sample_every=100, log_every=100, r1_every=2)
@@ -134,7 +134,7 @@ def _():
     from src.methods.mirror_conditioned import MirrorConditionedInpainter
     from src.methods.stylegan_noninversion import CoModGANInpainter
     evaluate_tiny(CoModGANInpainter.from_ckpt(TMP / "comod.pt", "cpu"))
-    for n in ("m04a", "m04b"):
+    for n in ("m04a", "m04b", "m04c"):
         evaluate_tiny(MirrorConditionedInpainter.from_ckpt(TMP / f"{n}.pt", "cpu"), "one_sided")
 
 

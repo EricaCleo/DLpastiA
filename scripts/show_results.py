@@ -2,6 +2,7 @@
     python scripts/show_results.py                  # all masks
     python scripts/show_results.py --mask one_sided
     python scripts/show_results.py --csv results_table.csv      # also write a CSV
+    python scripts/show_results.py --dir outputs/results_final  # the final (large) runs; lpips_se = standard error
 """
 import argparse
 import csv
@@ -16,8 +17,8 @@ ap.add_argument("--csv", default=None)
 a = ap.parse_args()
 
 rows = [json.loads(p.read_text()) for p in sorted(Path(a.dir).glob("*.json"))]
-cols = ["psnr", "ssim", "lpips", "diversity", "sec_per_image", "n_images", "image_size"]
-fmt = lambda r, c: ("%.3f" % r[c] if c in ("ssim", "lpips", "diversity") else "%.2f" % r[c] if c in ("psnr", "sec_per_image")
+cols = ["psnr", "ssim", "lpips", "lpips_se", "diversity", "sec_per_image", "n_images", "image_size"]
+fmt = lambda r, c: ("%.4f" % r[c] if c == "lpips_se" else "%.3f" % r[c] if c in ("ssim", "lpips", "diversity") else "%.2f" % r[c] if c in ("psnr", "sec_per_image")
                     else str(r[c])) if c in r else "-"
 for mask in ["one_sided", "centre", "square"]:
     if a.mask and mask != a.mask:

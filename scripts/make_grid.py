@@ -33,6 +33,8 @@ NAMES = {
     "grey_fill": "Grey fill (baseline)", "mirror_paste": "Mirror paste (baseline)",
     "stylegan_inversion": "StyleGAN inversion", "stylegan_noninversion": "StyleGAN non-inversion",
     "mirror_04a": "Mirror-conditioned StyleGAN (04a)", "mirror_04b": "Mirror-conditioned StyleGAN + symmetry loss (04b)",
+    "mirror_04c": "Mirror-conditioned StyleGAN, axis-aligned mirror (04c)",
+    "mirror_guided_repaint_uvit": "Mirror-guided RePaint (U-ViT)",
 }
 
 import re
