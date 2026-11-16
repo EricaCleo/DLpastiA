@@ -1,5 +1,5 @@
 #!/bin/bash
-# Makes ALL comparison pictures for the methods evaluated so far, for the three mask types.
+# Makes ALL comparison pictures for the six methods, for the three mask types.
 #   Style 1: masked input | one method's result            (one picture per method per mask)
 #   Style 2: masked input | every method | original         (one picture per mask)
 # Uses the 48-image runs, so every method shows the SAME faces. Run from the project folder, environment active:
@@ -8,7 +8,7 @@
 set -e
 cd "$(dirname "$0")/.."
 ROWS="${ROWS:-8}"; N="${N:-48}"
-METHODS="mae_n48 repaint_uvit mirror_fixed_uvit mirror_adaptive_uvit"
+METHODS="${METHODS:-mae_n48 stylegan_inversion stylegan_noninversion mirror_04a mirror_04b repaint_uvit mirror_adaptive_uvit}"
 for MASK in one_sided centre square; do
   echo "=== $MASK: style 1 (masked | one method) ==="
   for M in $METHODS; do
