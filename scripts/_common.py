@@ -50,7 +50,7 @@ def add_gan_train_args(p, ckpt):
     p.add_argument("--ckpt", default=ckpt)
 
 
-def gan_train(mode, a, sym_w=0.0):
+def gan_train(mode, a, sym_w=0.0, diffaug=False):
     from torch.utils.data import DataLoader
     from src.data import get_datasets, load_config
     from src.gan import train_gan
@@ -61,7 +61,7 @@ def gan_train(mode, a, sym_w=0.0):
     gcfg = dict(mode=mode, size=a.image_size, z_dim=512, w_dim=512, base=a.base, cap=512, map_layers=4)
     dev = device()
     print("device", dev, "| mode", mode, "| train images", len(train_ds), "| size", a.image_size, "| batch", a.batch_size,
-          "| budget h", a.max_hours, "| sym", sym_w, flush=True)
+          "| budget h", a.max_hours, "| sym", sym_w, "| diffaug", diffaug, flush=True)
     sample_dir = Path(a.ckpt).with_suffix("").as_posix() + "_samples"
     train_gan(gcfg, loader, a.ckpt, max_hours=a.max_hours, device=dev, lr=a.lr, r1_gamma=a.r1, l1_w=a.l1,
-              lpips_w=a.lpips, sym_w=sym_w, flip=not a.no_flip, sample_dir=sample_dir, max_steps=a.max_steps)
+              lpips_w=a.lpips, sym_w=sym_w, flip=not a.no_flip, sample_dir=sample_dir, max_steps=a.max_steps, diffaug=diffaug)

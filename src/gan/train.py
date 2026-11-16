@@ -12,6 +12,7 @@ from pathlib import Path
 import torch
 import torch.nn.functional as F
 
+from .augment import diff_augment
 from .inputs import INPUTS
 from .networks import CoModGenerator, Discriminator, UncondGenerator
 
@@ -42,10 +43,12 @@ def _random_flip(x, m, xm):
 
 def train_gan(cfg, loader, ckpt_path, max_hours=22.0, device="cuda", lr=2e-3, r1_gamma=1.0, adv_w=1.0, l1_w=1.0,
               lpips_w=1.0, sym_w=0.0, flip=True, ema_kimg=10.0, save_every=1000, sample_every=2000, log_every=100,
-              sample_dir=None, r1_every=16, max_steps=None):
+              sample_dir=None, r1_every=16, max_steps=None, diffaug=False):
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
     mode, supervised = cfg["mode"], cfg["mode"] != "uncond"
+    assert not (diffaug and supervised), "DiffAugment is only wired up for the unconditional generator"
+    aug = diff_augment if diffaug else (lambda t: t)       # applied to everything the discriminator sees
     build_input = INPUTS[mode][0] if supervised else None
     G, D = build_models(cfg)
     G, D = G.to(device), D.to(device)
@@ -97,12 +100,12 @@ def train_gan(cfg, loader, ckpt_path, max_hours=22.0, device="cuda", lr=2e-3, r1
         D.requires_grad_(True)
         with torch.no_grad():
             _, _, fake_in = make_fake(x, m, xm)
-        lossD = F.softplus(D(fake_in)).mean() + F.softplus(-D(real_in)).mean()
+        lossD = F.softplus(D(aug(fake_in))).mean() + F.softplus(-D(aug(real_in))).mean()
         optD.zero_grad(set_to_none=True)
         lossD.backward()
         if step % r1_every == 0:                              # lazy R1 regularisation on real images
             r = real_in.detach().requires_grad_(True)
-            grad, = torch.autograd.grad(D(r).sum(), r, create_graph=True)
+            grad, = torch.autograd.grad(D(aug(r)).sum(), r, create_graph=True)
             r1 = grad.square().sum([1, 2, 3]).mean()
             (r1 * (r1_gamma / 2) * r1_every).backward()
             log["r1"] = r1.item()
@@ -111,7 +114,7 @@ def train_gan(cfg, loader, ckpt_path, max_hours=22.0, device="cuda", lr=2e-3, r1
         # ---- generator
         D.requires_grad_(False)
         y, comp, fake_in = make_fake(x, m, xm)
-        adv = F.softplus(-D(fake_in)).mean()
+        adv = F.softplus(-D(aug(fake_in))).mean()
         lossG = adv_w * adv
         parts = {"adv": adv.item()}
         if supervised:
