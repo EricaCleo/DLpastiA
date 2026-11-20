@@ -1,7 +1,7 @@
 #!/bin/bash
 # Runs one pipeline STAGE (several commands in a row, on the same GPU, no re-queueing).
 #   bash slurm/run_pipeline.sh <stage>
-# Stages:  train_ddpm | eval_diffusion | train_mae | eval_mae | train_g_uncond | train_comod | train_mirror_04a | train_mirror_04b | eval_gan | train_uvit | eval_uvit | sweep_mirror | train_mirror_04c | final_eval
+# Stages:  train_ddpm | eval_diffusion | train_mae | eval_mae | train_g_uncond | train_comod | train_mirror_04a | train_mirror_04b | eval_gan | train_uvit | eval_uvit | sweep_mirror | train_mirror_04c | final_eval | ablate_mirror | extend_gan
 # Override settings with environment variables, e.g.  N=100 K=3 RESAMPLES=10 bash slurm/run_pipeline.sh eval_diffusion
 # Add new stages (train_mae, train_gan, ...) as new `case` branches when those methods exist.
 set -e
@@ -155,6 +155,31 @@ case "$STAGE" in
       run stylegan_inversion "$mask" python scripts/m2_stylegan_inversion.py eval --ckpt checkpoints/g_uncond_128.pt --mask "$mask" --n "$NS" --K 3 --image-size "$SIZE" --save-dir "$S/stylegan_inversion_${mask}"
       run repaint_uvit "$mask" python scripts/m5_repaint.py eval --ckpt "$U" --name repaint_uvit --mask "$mask" --n "$NS" --K "$K" --image-size "$SIZE" --resamples "$RESAMPLES" --save-dir "$S/repaint_uvit_${mask}"
       run mirror_guided_repaint_uvit "$mask" python scripts/m6_mirror_guided_repaint.py eval --ckpt "$U" --adaptive --lam 0.02 --guide-frac 0.2 --name mirror_guided_repaint_uvit --mask "$mask" --n "$NS" --K "$K" --image-size "$SIZE" --resamples "$RESAMPLES" --save-dir "$S/mirror_guided_repaint_uvit_${mask}"
+    done ;;
+  ablate_mirror)    # Does 4a really use the mirror? Same faces, mirror channels blanked or taken from another face.
+    export RESULTS_DIR=outputs/results_final
+    for mask in one_sided square centre; do
+      for ab in blank shuffled; do
+        echo "=== mirror_04a, mirror $ab / $mask ==="
+        python scripts/m4_mirror_conditioned.py eval --ckpt checkpoints/mirror_04a_128.pt --name "mirror_04a_${ab}" --ablate "$ab" --mask "$mask" --n "${N_FAST:-1500}" --K 3 --batch 32 --image-size "$SIZE"
+      done
+    done ;;
+  extend_gan)       # Train a finished GAN LONGER on a COPY of its checkpoint, then evaluate it as <name>_long.
+    # MODEL=comod (method 3) or MODEL=mirror_04a. Give both the same EXT_STEPS so the comparison stays fair.
+    MODEL="${MODEL:?set MODEL=comod or MODEL=mirror_04a}"; EXT="${EXT_STEPS:-260000}"
+    SRC="checkpoints/${MODEL}_128.pt"; DST="checkpoints/${MODEL}_long_128.pt"
+    [ -f "$DST" ] || cp "$SRC" "$DST"                      # the original checkpoint is never changed
+    acquire_lock "${MODEL}_long"
+    if [ "$MODEL" = "comod" ]; then SCRIPT=scripts/m3_stylegan_noninversion.py; NAME=stylegan_noninversion_long
+    else SCRIPT=scripts/m4_mirror_conditioned.py; NAME="${MODEL}_long"; fi
+    EXTRA="--name $NAME"
+    python "$SCRIPT" train --image-size "$SIZE" --max-hours 200 --max-steps "$EXT" --ckpt "$DST"
+    rm -rf "$LOCKDIR"; trap - EXIT INT TERM
+    for mask in one_sided centre square; do
+      echo "=== $NAME / $mask (48 faces, for pictures) ==="
+      python "$SCRIPT" eval --ckpt "$DST" $EXTRA --mask "$mask" --n 48 --K 3 --image-size "$SIZE" --save-dir "outputs/samples/${NAME}_${mask}"
+      echo "=== $NAME / $mask (final) ==="
+      RESULTS_DIR=outputs/results_final python "$SCRIPT" eval --ckpt "$DST" $EXTRA --mask "$mask" --n "${N_FAST:-1500}" --K 3 --batch 32 --image-size "$SIZE"
     done ;;
   *) echo "unknown stage: $STAGE"; exit 2 ;;
 esac

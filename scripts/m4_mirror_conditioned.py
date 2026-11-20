@@ -17,6 +17,8 @@ t.add_argument("--aligned", action="store_true", help="variant 04c: mirror the i
 e = sub.add_parser("eval"); add_eval_args(e)
 e.add_argument("--ckpt", default="checkpoints/mirror_04a_128.pt")
 e.add_argument("--name", default="mirror_conditioned", help="result name, e.g. mirror_04a / mirror_04b")
+e.add_argument("--ablate", default="none", choices=["none", "blank", "shuffled"],
+               help="test-time ablation of the mirror channels: blank = no mirror, shuffled = another face's mirror")
 a = ap.parse_args()
 
 if a.cmd == "train":
@@ -25,5 +27,5 @@ else:
     from _common import device
     from src.methods.mirror_conditioned import MirrorConditionedInpainter
     m = MirrorConditionedInpainter.from_ckpt(a.ckpt, device())
-    m.name = a.name
+    m.name, m.ablate = a.name, a.ablate
     run_eval(m, a)

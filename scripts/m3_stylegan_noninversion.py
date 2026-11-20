@@ -11,6 +11,7 @@ sub = ap.add_subparsers(dest="cmd", required=True)
 t = sub.add_parser("train"); add_gan_train_args(t, "checkpoints/comod_128.pt")
 e = sub.add_parser("eval"); add_eval_args(e)
 e.add_argument("--ckpt", default="checkpoints/comod_128.pt")
+e.add_argument("--name", default=None, help="result name (default: stylegan_noninversion), e.g. stylegan_noninversion_long")
 a = ap.parse_args()
 
 if a.cmd == "train":
@@ -18,4 +19,7 @@ if a.cmd == "train":
 else:
     from _common import device
     from src.methods.stylegan_noninversion import CoModGANInpainter
-    run_eval(CoModGANInpainter.from_ckpt(a.ckpt, device()), a)
+    m = CoModGANInpainter.from_ckpt(a.ckpt, device())
+    if a.name:
+        m.name = a.name
+    run_eval(m, a)

@@ -30,3 +30,24 @@ class MirrorConditionedInpainter(CoModGANInpainter):
         m = cls(G, device)
         m.mode, m.build_input = cfg["mode"], INPUTS[cfg["mode"]][0]
         return m
+
+    # Test-time ablation: does the trained network really USE the mirrored half? (scripts/m4_mirror_conditioned.py --ablate)
+    #   'none'    : normal input
+    #   'blank'   : the mirror channels say "nothing visible" (image 0, mask 1)
+    #   'shuffled': the mirror channels come from ANOTHER face in the batch (a plausible but wrong mirror)
+    ablate = "none"
+
+    @torch.no_grad()
+    def fill(self, masked, mask, K=1):
+        if self.ablate == "none":
+            return super().fill(masked, mask, K)
+        masked, mask = masked.to(self.device), mask.to(self.device)
+        inp = self.build_input(masked, mask).clone()
+        if self.ablate == "blank":
+            inp[:, 4:7], inp[:, 7:8] = 0.0, 1.0
+        elif self.ablate == "shuffled":
+            assert inp.shape[0] > 1, "shuffled ablation needs a batch of at least 2 images"
+            inp[:, 4:8] = torch.roll(inp[:, 4:8], 1, 0)
+        else:
+            raise ValueError(self.ablate)
+        return [self.G(inp, torch.randn(masked.shape[0], self.G.z_dim, device=self.device)).clamp(-1, 1) for _ in range(K)]
