@@ -58,6 +58,13 @@ class AFHQInpainting(Dataset):
 
     def _mask(self, i):
         rng = np.random.default_rng(None if self.train else self.seed + i)
+        if self.mask_type == "mix":   # training only: random squares (ratio_range), one-sided and centre holes
+            kind = rng.choice(["square", "one_sided", "centre"], p=[0.5, 0.3, 0.2])
+            if kind == "centre":
+                return centre_mask(self.size, ratio=rng.uniform(0.10, 0.30))
+            if kind == "one_sided":
+                return one_sided_mask(self.size, side=("left", "right")[int(rng.integers(2))], rng=rng)
+            return random_square_mask(self.size, self.ratio_range, rng)
         if self.mask_type == "centre":
             return centre_mask(self.size)
         if self.mask_type == "one_sided":
@@ -71,12 +78,15 @@ class AFHQInpainting(Dataset):
 
 
 def get_datasets(cfg=None, mask_type="square", species=None):
+    """cfg may set train_masks ('square' default, or 'mix') and train_mask_ratio (default = mask_ratio);
+    the TEST set always uses mask_ratio and the requested mask_type, so test results stay comparable."""
     cfg = cfg or load_config()
     tr = list_images(cfg["raw_dir"], cfg["train_split"], species)
     te = list_images(cfg["raw_dir"], cfg["test_split"], species)
-    kw = dict(size=cfg["image_size"], ratio_range=tuple(cfg["mask_ratio"]), seed=cfg["test_seed"])
-    return (AFHQInpainting(tr, train=True, **kw),
-            AFHQInpainting(te, train=False, mask_type=mask_type, **kw))
+    kw = dict(size=cfg["image_size"], seed=cfg["test_seed"])
+    train_ratio = tuple(cfg.get("train_mask_ratio") or cfg["mask_ratio"])
+    return (AFHQInpainting(tr, train=True, ratio_range=train_ratio, mask_type=cfg.get("train_masks", "square"), **kw),
+            AFHQInpainting(te, train=False, ratio_range=tuple(cfg["mask_ratio"]), mask_type=mask_type, **kw))
 
 
 def get_loaders(batch_size=16, num_workers=2, cfg=None, **kw):

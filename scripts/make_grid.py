@@ -36,6 +36,8 @@ NAMES = {
     "mirror_04c": "Mirror-conditioned StyleGAN, axis-aligned mirror (04c)",
     "stylegan_noninversion_long": "StyleGAN non-inversion, trained longer",
     "mirror_04a_long": "Mirror-conditioned StyleGAN (04a), trained longer",
+    "stylegan_noninversion_ft": "StyleGAN non-inversion, fine-tuned (low lr, harder holes)",
+    "mirror_04a_ft": "Mirror-conditioned StyleGAN (04a), fine-tuned (low lr, harder holes)",
     "mirror_guided_repaint_uvit": "Mirror-guided RePaint (U-ViT)",
 }
 

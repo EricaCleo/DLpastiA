@@ -1,7 +1,7 @@
 #!/bin/bash
 # Runs one pipeline STAGE (several commands in a row, on the same GPU, no re-queueing).
 #   bash slurm/run_pipeline.sh <stage>
-# Stages:  train_ddpm | eval_diffusion | train_mae | eval_mae | train_g_uncond | train_comod | train_mirror_04a | train_mirror_04b | eval_gan | train_uvit | eval_uvit | sweep_mirror | train_mirror_04c | final_eval | ablate_mirror | extend_gan
+# Stages:  train_ddpm | eval_diffusion | train_mae | eval_mae | train_g_uncond | train_comod | train_mirror_04a | train_mirror_04b | eval_gan | train_uvit | eval_uvit | sweep_mirror | train_mirror_04c | final_eval | ablate_mirror | extend_gan | finetune_gan
 # Override settings with environment variables, e.g.  N=100 K=3 RESAMPLES=10 bash slurm/run_pipeline.sh eval_diffusion
 # Add new stages (train_mae, train_gan, ...) as new `case` branches when those methods exist.
 set -e
@@ -180,6 +180,24 @@ case "$STAGE" in
       python "$SCRIPT" eval --ckpt "$DST" $EXTRA --mask "$mask" --n 48 --K 3 --image-size "$SIZE" --save-dir "outputs/samples/${NAME}_${mask}"
       echo "=== $NAME / $mask (final) ==="
       RESULTS_DIR=outputs/results_final python "$SCRIPT" eval --ckpt "$DST" $EXTRA --mask "$mask" --n "${N_FAST:-1500}" --K 3 --batch 32 --image-size "$SIZE"
+    done ;;
+  finetune_gan)     # Fine-tune a finished GAN on a COPY of its checkpoint with targeted hyperparameters, evaluate as <name>_ft:
+    #   lower learning rate (FT_LR, default 2e-4 = 10x lower), harder training holes (squares up to FT_RATIO=0.6 of the
+    #   image, plus one-sided and centre holes), for FT_STEPS more steps. MODEL=comod (method 3) or MODEL=mirror_04a.
+    MODEL="${MODEL:?set MODEL=comod or MODEL=mirror_04a}"
+    SRC="checkpoints/${MODEL}_128.pt"; DST="checkpoints/${MODEL}_ft_128.pt"
+    [ -f "$DST" ] || cp "$SRC" "$DST"                      # the original checkpoint is never changed
+    acquire_lock "${MODEL}_ft"
+    if [ "$MODEL" = "comod" ]; then SCRIPT=scripts/m3_stylegan_noninversion.py; NAME=stylegan_noninversion_ft
+    else SCRIPT=scripts/m4_mirror_conditioned.py; NAME="${MODEL}_ft"; fi
+    python "$SCRIPT" train --image-size "$SIZE" --max-hours 200 --max-steps $(( TARGET_STEPS + ${FT_STEPS:-60000} )) \
+      --lr "${FT_LR:-2e-4}" --train-masks mix --train-max-ratio "${FT_RATIO:-0.6}" --ckpt "$DST"
+    rm -rf "$LOCKDIR"; trap - EXIT INT TERM
+    for mask in one_sided centre square; do
+      echo "=== $NAME / $mask (48 faces, for pictures) ==="
+      python "$SCRIPT" eval --ckpt "$DST" --name "$NAME" --mask "$mask" --n 48 --K 3 --image-size "$SIZE" --save-dir "outputs/samples/${NAME}_${mask}"
+      echo "=== $NAME / $mask (final) ==="
+      RESULTS_DIR=outputs/results_final python "$SCRIPT" eval --ckpt "$DST" --name "$NAME" --mask "$mask" --n "${N_FAST:-1500}" --K 3 --batch 32 --image-size "$SIZE"
     done ;;
   *) echo "unknown stage: $STAGE"; exit 2 ;;
 esac

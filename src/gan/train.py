@@ -65,6 +65,9 @@ def train_gan(cfg, loader, ckpt_path, max_hours=22.0, device="cuda", lr=2e-3, r1
         ck = torch.load(ckpt_path, map_location=device)
         G.load_state_dict(ck["G"]); D.load_state_dict(ck["D"]); G_ema.load_state_dict(ck["G_ema"])
         optG.load_state_dict(ck["optG"]); optD.load_state_dict(ck["optD"]); step, elapsed = ck["step"], ck["elapsed"]
+        for opt in (optG, optD):                             # the lr given now wins (fine-tuning at a lower lr)
+            for g in opt.param_groups:
+                g["lr"] = lr
         print(f"resumed from step {step} ({elapsed:.2f} h already trained)", flush=True)
     ckpt_path.parent.mkdir(parents=True, exist_ok=True)
     if sample_dir:

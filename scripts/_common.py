@@ -47,6 +47,9 @@ def add_gan_train_args(p, ckpt):
     p.add_argument("--base", type=int, default=16384, help="channel base (width); smaller = faster/lighter")
     p.add_argument("--max-steps", type=int, default=None, help="also stop at this training step (to give models an EQUAL number of steps); resumes from the checkpoint")
     p.add_argument("--no-flip", action="store_true")
+    p.add_argument("--train-masks", default="square", choices=["square", "mix"],
+                   help="training holes: square (as before) or mix (squares + one-sided + centre)")
+    p.add_argument("--train-max-ratio", type=float, default=None, help="largest training hole area, e.g. 0.6 (default: as data.yaml)")
     p.add_argument("--ckpt", default=ckpt)
 
 
@@ -56,12 +59,16 @@ def gan_train(mode, a, sym_w=0.0, diffaug=False):
     from src.gan import train_gan
     cfg = load_config()
     cfg["image_size"] = a.image_size
+    cfg["train_masks"] = a.train_masks
+    if a.train_max_ratio:
+        cfg["train_mask_ratio"] = [cfg["mask_ratio"][0], a.train_max_ratio]
     train_ds, _ = get_datasets(cfg)
     loader = DataLoader(train_ds, a.batch_size, shuffle=True, num_workers=a.workers, drop_last=True, pin_memory=True)
     gcfg = dict(mode=mode, size=a.image_size, z_dim=512, w_dim=512, base=a.base, cap=512, map_layers=4)
     dev = device()
     print("device", dev, "| mode", mode, "| train images", len(train_ds), "| size", a.image_size, "| batch", a.batch_size,
-          "| budget h", a.max_hours, "| sym", sym_w, "| diffaug", diffaug, flush=True)
+          "| budget h", a.max_hours, "| sym", sym_w, "| diffaug", diffaug, "| lr", a.lr, "| train masks", a.train_masks,
+          "| train hole ratio", cfg.get("train_mask_ratio", cfg["mask_ratio"]), flush=True)
     sample_dir = Path(a.ckpt).with_suffix("").as_posix() + "_samples"
     train_gan(gcfg, loader, a.ckpt, max_hours=a.max_hours, device=dev, lr=a.lr, r1_gamma=a.r1, l1_w=a.l1,
               lpips_w=a.lpips, sym_w=sym_w, flip=not a.no_flip, sample_dir=sample_dir, max_steps=a.max_steps, diffaug=diffaug)
