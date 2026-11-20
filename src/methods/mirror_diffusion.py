@@ -13,6 +13,8 @@ Tunables: lam (strength) and guide_until (fraction of the schedule, from the sta
 import torch
 import torch.nn.functional as F
 
+from src.diffusion import repaint_schedule
+
 from .repaint import RePaint
 
 
@@ -103,3 +105,35 @@ class MirrorGuidedRePaint(RePaint):
         # the known pixels never change during sampling, so the axis alignment is computed once per image
         self._shifts = best_shift(gt, 1 - mask, self.max_shift).to(gt.device) if self.align else None
         return super().sample(gt, mask)
+
+
+class MirrorGANRefinedRePaint(RePaint):
+    """Method 6, version 2 (ours): mirror-conditioned GAN + diffusion refinement (SDEdit-style), training-free.
+
+    1. The mirror-conditioned GAN (Method 4a) fills the hole. It has LEARNED how much to trust the mirrored half.
+    2. That fill is noised to an intermediate level t0 = start_frac * steps (not to pure noise), and
+    3. RePaint denoises from t0 down to the clean image (with its resampling), keeping the visible pixels.
+    start_frac small = light polish that stays close to the GAN fill; large = the diffusion model redraws more.
+    Each of the K fills uses a new GAN sample AND new diffusion noise. Cost: about start_frac x RePaint's time.
+    """
+    name = "mirror_gan_repaint"
+
+    def __init__(self, model, gan, start_frac=0.3, **kw):
+        super().__init__(model, **kw)
+        self.gan, self.start_frac = gan, start_frac
+        n0 = max(1, int(round(start_frac * self.diff.num_steps)))
+        self.t0 = n0 - 1
+        self.schedule = repaint_schedule(n0, kw.get("jump_length", 10), kw.get("resamples", 10))
+
+    @torch.no_grad()
+    def sample(self, gt, mask):
+        init = self.gan.fill(gt, mask, 1)[0].to(gt.device)
+        init = mask * init + (1 - mask) * gt
+        ab = self.diff.alphas_cumprod[self.t0]
+        x = ab.sqrt() * init + (1 - ab).sqrt() * torch.randn_like(init)       # x at level t0 = schedule[0]
+        for t_last, t_cur in zip(self.schedule[:-1], self.schedule[1:]):
+            if t_cur < t_last:
+                x = self._reverse_step(x, t_last, gt, 1 - mask)
+            else:
+                x = self.diff.undo(x, t_cur)
+        return x

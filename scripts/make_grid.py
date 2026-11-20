@@ -48,6 +48,10 @@ def pretty(name):
     """Full method name for a heading; understands the mirror-sweep folder names (..._l0.05_f0.5_k9_a1)."""
     if name in NAMES:
         return NAMES[name]
+    h = re.match(r"(mirror_gan|stylegan)_repaint_s([\d.]+)$", name)
+    if h:
+        first = "Mirror-conditioned StyleGAN (04a)" if h.group(1) == "mirror_gan" else "StyleGAN non-inversion"
+        return f"{first} + RePaint refinement (last {round(float(h.group(2)) * 100)}% of steps)"
     m = re.match(r"mirror_adaptive_uvit_l([\d.]+)_f([\d.]+)_k(\d+)_a(\d)$", name)
     if m:
         lam, frac, k, al = m.groups()

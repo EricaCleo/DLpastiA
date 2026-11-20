@@ -1,7 +1,7 @@
 #!/bin/bash
 # Runs one pipeline STAGE (several commands in a row, on the same GPU, no re-queueing).
 #   bash slurm/run_pipeline.sh <stage>
-# Stages:  train_ddpm | eval_diffusion | train_mae | eval_mae | train_g_uncond | train_comod | train_mirror_04a | train_mirror_04b | eval_gan | train_uvit | eval_uvit | sweep_mirror | train_mirror_04c | final_eval | ablate_mirror | extend_gan | finetune_gan
+# Stages:  train_ddpm | eval_diffusion | train_mae | eval_mae | train_g_uncond | train_comod | train_mirror_04a | train_mirror_04b | eval_gan | train_uvit | eval_uvit | sweep_mirror | train_mirror_04c | final_eval | ablate_mirror | extend_gan | finetune_gan | eval_hybrid
 # Override settings with environment variables, e.g.  N=100 K=3 RESAMPLES=10 bash slurm/run_pipeline.sh eval_diffusion
 # Add new stages (train_mae, train_gan, ...) as new `case` branches when those methods exist.
 set -e
@@ -198,6 +198,22 @@ case "$STAGE" in
       python "$SCRIPT" eval --ckpt "$DST" --name "$NAME" --mask "$mask" --n 48 --K 3 --image-size "$SIZE" --save-dir "outputs/samples/${NAME}_${mask}"
       echo "=== $NAME / $mask (final) ==="
       RESULTS_DIR=outputs/results_final python "$SCRIPT" eval --ckpt "$DST" --name "$NAME" --mask "$mask" --n "${N_FAST:-1500}" --K 3 --batch 32 --image-size "$SIZE"
+    done ;;
+  eval_hybrid)      # Method 6 version 2: mirror GAN (4a) fill, refined by RePaint from START_FRACS of the steps.
+    # Also a control with the plain StyleGAN (method 3) as first fill, to see what the mirror adds inside the hybrid.
+    U="${UVIT_CKPT:-checkpoints/uvit_128.pt}"; GM="${HYB_GAN:-checkpoints/mirror_04a_128.pt}"; NS="${N_SLOW:-300}"
+    for mask in one_sided centre square; do
+      for f in ${START_FRACS:-0.2 0.4}; do
+        for init in mirror comod; do
+          [ "$init" = comod ] && [ "$f" != "${CONTROL_FRAC:-0.2}" ] && continue
+          G="$GM"; NAME="mirror_gan_repaint_s${f}"
+          [ "$init" = comod ] && G=checkpoints/comod_128.pt && NAME="stylegan_repaint_s${f}"
+          echo "=== $NAME / $mask (48 faces, for pictures) ==="
+          python scripts/m6_mirror_guided_repaint.py eval --ckpt "$U" --gan-init "$G" --start-frac "$f" --name "$NAME" --mask "$mask" --n 48 --K "$K" --image-size "$SIZE" --resamples "$RESAMPLES" --save-dir "outputs/samples/${NAME}_${mask}"
+          echo "=== $NAME / $mask (final, $NS faces) ==="
+          RESULTS_DIR=outputs/results_final python scripts/m6_mirror_guided_repaint.py eval --ckpt "$U" --gan-init "$G" --start-frac "$f" --name "$NAME" --mask "$mask" --n "$NS" --K "$K" --image-size "$SIZE" --resamples "$RESAMPLES"
+        done
+      done
     done ;;
   *) echo "unknown stage: $STAGE"; exit 2 ;;
 esac
