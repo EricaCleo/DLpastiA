@@ -1,12 +1,13 @@
-"""Report figures. Runs on the LOGIN NODE (CPU only, no Slurm, a minute or two):
+"""Report figures. Runs on the LOGIN NODE or a laptop (CPU only, no Slurm, a minute or two):
     python scripts/make_figures.py
 Writes PNGs to outputs/figures/:
-  fig1_training_curves.png   training loss over time for every trained model (read from the program-*.log files)
-  fig2_lpips_by_method.png    final LPIPS of every method, per hole type, with standard-error bars
-  fig3_quality_vs_speed.png   LPIPS against seconds per image (one-sided holes)
-  fig4_lpips_vs_hole_size.png how each method gets worse as the (square) hole grows
-  fig5_mirror_gain.png        the ablation: gain of 4a / 4b / 4c over plain StyleGAN, per hole type, 95% intervals
-  fig6_mirror_guidance.png    method 6: stronger mirror guidance in diffusion -> worse LPIPS and less diversity
+  fig1a_training_unsupervised.png  training loss over time: MAE (1), diffusion model (5, 6), unconditional StyleGAN (2)
+  fig1b_training_supervised.png    training loss over time: StyleGAN non-inversion (3) and the mirror models (4a, 4b, 4c)
+  fig2_lpips_by_method.png         final LPIPS of the six methods, per hole type, with 95% intervals
+  fig3_quality_vs_speed.png        LPIPS against seconds per image (one-sided holes)
+  fig4_lpips_vs_hole_size.png      LPIPS for small to large square holes
+  fig5_mirror_gain.png             ablation: LPIPS improvement of 4a / 4b / 4c over plain StyleGAN, per hole type
+  fig6_mirror_guidance.png         method 6: LPIPS and diversity at different mirror-guidance strengths
 Any figure whose data is missing is skipped with a message; the others are still made.
 """
 import argparse
@@ -25,6 +26,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.ticker import FuncFormatter
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--logs", default=str(ROOT / "program-*.log"), help="glob of training logs")
@@ -36,26 +38,29 @@ ap.add_argument("--dpi", type=int, default=200)
 a = ap.parse_args()
 OUT = Path(a.out); OUT.mkdir(parents=True, exist_ok=True)
 
-# ---------------- style (validated categorical palette, fixed order; one colour per method everywhere) ----------------
-INK, INK2, MUTED, GRID, AXIS, SURF = "#0b0b0b", "#52514e", "#898781", "#e1e0d9", "#c3c2b7", "#fcfcfb"
+# ---------------- style: one fixed colour per method in every figure (validated categorical palette) ----------------
+INK, INK2, MUTED, GRID, AXIS, SURF = "#0b0b0b", "#3d3c39", "#6b6a65", "#e6e5df", "#b9b8b2", "#ffffff"
 C = {"mae": "#2a78d6", "stylegan_inversion": "#eb6834", "stylegan_noninversion": "#1baf7a",
-     "mirror_04a": "#eda100", "mirror_04b": "#eda100", "mirror_04c": "#eda100",
-     "repaint_uvit": "#e87ba4", "mirror_guided_repaint_uvit": "#008300", "mirror_paste": "#b9b8b2", "grey_fill": "#b9b8b2"}
-NAME = {"mae": "1  MAE", "stylegan_inversion": "2  StyleGAN inversion", "stylegan_noninversion": "3  StyleGAN non-inversion",
-        "mirror_04a": "4a Mirror-conditioned StyleGAN", "mirror_04b": "4b  + symmetry loss", "mirror_04c": "4c  axis-aligned mirror",
-        "repaint_uvit": "5  RePaint (U-ViT)", "mirror_guided_repaint_uvit": "6  Mirror-guided RePaint",
-        "mirror_paste": "Mirror paste (baseline)", "grey_fill": "Grey fill (baseline)"}
-HATCH = {"mirror_04b": "////", "mirror_04c": "...."}
+     "mirror_04a": "#eda100", "mirror_04b": "#b37900", "mirror_04c": "#f5c95c",
+     "repaint_uvit": "#e87ba4", "mirror_guided_repaint_uvit": "#008300"}
+NAME = {"mae": "MAE (1)", "stylegan_inversion": "StyleGAN inversion (2)", "stylegan_noninversion": "StyleGAN non-inversion (3)",
+        "mirror_04a": "Mirror StyleGAN (4a)", "mirror_04b": "Mirror StyleGAN + symmetry loss (4b)",
+        "mirror_04c": "Mirror StyleGAN, aligned axis (4c)",
+        "repaint_uvit": "RePaint (5)", "mirror_guided_repaint_uvit": "Mirror-guided RePaint (6)"}
 MASKS = [("one_sided", "One-sided holes"), ("square", "Random square holes"), ("centre", "Centre holes")]
-plt.rcParams.update({"font.size": 9, "axes.edgecolor": AXIS, "axes.labelcolor": INK2, "xtick.color": MUTED,
-                     "ytick.color": MUTED, "axes.titlesize": 10, "axes.titleweight": "bold", "axes.titlecolor": INK,
-                     "axes.grid": True, "grid.color": GRID, "grid.linewidth": 0.6, "axes.spines.top": False,
-                     "axes.spines.right": False, "figure.facecolor": SURF, "axes.facecolor": SURF,
-                     "legend.frameon": False, "lines.linewidth": 2})
+# the six methods of the report (4c appears only in the ablation figures)
+METHODS = ["mae", "stylegan_inversion", "stylegan_noninversion", "mirror_04a", "mirror_04b",
+           "repaint_uvit", "mirror_guided_repaint_uvit"]
+plt.rcParams.update({"font.size": 11, "axes.edgecolor": AXIS, "axes.labelcolor": INK2, "xtick.color": INK2,
+                     "ytick.color": INK2, "axes.titlesize": 12, "axes.titleweight": "bold", "axes.titlecolor": INK,
+                     "axes.titlepad": 10, "axes.grid": True, "grid.color": GRID, "grid.linewidth": 0.7,
+                     "axes.spines.top": False, "axes.spines.right": False, "figure.facecolor": SURF,
+                     "axes.facecolor": SURF, "legend.frameon": False, "legend.fontsize": 10, "lines.linewidth": 2.2})
+KSTEPS = FuncFormatter(lambda v, _: f"{v / 1000:.0f}k" if abs(v) >= 1000 else f"{v:.0f}")   # 120000 -> 120k
 
 
 def save(fig, name):
-    fig.savefig(OUT / name, dpi=a.dpi, bbox_inches="tight")
+    fig.savefig(OUT / name, dpi=a.dpi, bbox_inches="tight", facecolor=SURF)
     plt.close(fig)
     print("saved", OUT / name)
 
@@ -65,9 +70,16 @@ def smooth(y, w):
     if len(y) < 3 or w <= 1:
         return y
     w = min(w, len(y))
-    k = np.ones(w) / w
     pad = np.concatenate([np.full(w // 2, y[0]), y, np.full(w - 1 - w // 2, y[-1])])
-    return np.convolve(pad, k, mode="valid")
+    return np.convolve(pad, np.ones(w) / w, mode="valid")
+
+
+def trend_ylim(ax, ys, skip=0.03):
+    """y-range from the smoothed curves, ignoring the very first steps (where losses start very high)."""
+    vals = np.concatenate([y[int(len(y) * skip):] for y in ys if len(y)])
+    if len(vals):
+        lo, hi = vals.min(), vals.max(); pad = 0.08 * (hi - lo + 1e-9)
+        ax.set_ylim(lo - pad, hi + pad)
 
 
 # ======================================= 1. training curves from the logs =======================================
@@ -131,48 +143,55 @@ def fig_training():
     if not runs:
         print("fig1: no training lines found in", a.logs, "- skipped"); return
     print("fig1: found", {k: {m: len(v) for m, v in r.items()} for k, r in runs.items()})
-    fig, axs = plt.subplots(2, 3, figsize=(13, 7))
-    axs = axs.ravel()
 
-    def single(ax, model, metric, title, xlabel, ylabel, w=25, logy=False):
-        x, y = series(runs, model, metric)
+    # ---- 1a: the models trained WITHOUT hole/original pairs
+    fig, axs = plt.subplots(1, 3, figsize=(15, 4.3))
+    panels = [("mae", "loss", "MAE (method 1)", "epoch", "reconstruction loss", 15),
+              ("uvit", "loss", "Diffusion model, U-ViT (methods 5, 6)", "training step", "noise-prediction loss", 60)]
+    for ax, (m, metric, title, xl, yl, w) in zip(axs, panels):
+        x, y = series(runs, m, metric)
         if x is None:
             ax.text(0.5, 0.5, "no log found", ha="center", va="center", color=MUTED, transform=ax.transAxes)
         else:
-            ax.plot(x, y, color=AXIS, linewidth=0.6)
-            ax.plot(x, smooth(y, w), color=INK2)
-            if logy:
-                ax.set_yscale("log")
-        ax.set_title(title, loc="left"); ax.set_xlabel(xlabel); ax.set_ylabel(ylabel)
-
-    single(axs[0], "mae", "loss", "Method 1: MAE (pixel MSE on hidden patches)", "epoch", "loss", w=15)
-    single(axs[1], "uvit", "loss", "Methods 5 and 6: diffusion model (U-ViT)", "training step", "noise MSE (log)", w=50, logy=True)
-
-    ax = axs[2]                                     # method 2: unconditional generator, D and G adversarial losses
-    for metric, lab, col, ls in [("D", "Discriminator", "#6250d6", "-"), ("adv", "Generator (adversarial)", "#e34948", "--")]:
+            ys = smooth(y, w); ax.plot(x, ys, color=C["mae"] if m == "mae" else C["repaint_uvit"])
+            trend_ylim(ax, [ys])
+        ax.set_title(title, loc="left"); ax.set_xlabel(xl); ax.set_ylabel(yl)
+    axs[1].xaxis.set_major_formatter(KSTEPS)
+    ax = axs[2]; ys_all = []
+    for metric, lab, ls in [("D", "discriminator", "-"), ("adv", "generator", "--")]:
         x, y = series(runs, "g_uncond", metric)
         if x is not None:
-            ax.plot(x, smooth(y, 50), color=col, linestyle=ls, label=lab)
-    ax.set_title("Method 2: unconditional StyleGAN (for inversion)", loc="left"); ax.set_xlabel("training step"); ax.set_ylabel("loss")
-    if ax.lines:
-        ax.legend()
+            ys = smooth(y, 80); ys_all.append(ys)
+            ax.plot(x, ys, color=C["stylegan_inversion"], linestyle=ls, label=lab)
+    if ys_all:
+        trend_ylim(ax, ys_all); ax.legend(loc="center right")
+    ax.set_title("Unconditional StyleGAN (method 2)", loc="left"); ax.set_xlabel("training step"); ax.set_ylabel("adversarial loss")
+    ax.xaxis.set_major_formatter(KSTEPS)
+    fig.tight_layout(w_pad=3)
+    save(fig, "fig1a_training_unsupervised.png")
 
-    sup = ["stylegan_noninversion", "mirror_04a", "mirror_04b", "mirror_04c"]
-    styles = {"stylegan_noninversion": "-", "mirror_04a": "-", "mirror_04b": "--", "mirror_04c": ":"}
-    for ax, metric, title, lab in [(axs[3], "l1", "Methods 3 and 4: hole L1 loss", "L1 (hole)"),
-                                   (axs[4], "lpips", "Methods 3 and 4: LPIPS loss", "LPIPS"),
-                                   (axs[5], "D", "Methods 3 and 4: discriminator loss", "D loss")]:
+    # ---- 1b: the supervised GANs (same training length, so the curves can be compared directly)
+    sup = [m for m in ["stylegan_noninversion", "mirror_04a", "mirror_04b", "mirror_04c"] if m in runs]
+    if not sup:
+        print("fig1b: no supervised GAN logs - skipped"); return
+    ls = {"stylegan_noninversion": "-", "mirror_04a": "-", "mirror_04b": "--", "mirror_04c": ":"}
+    fig, axs = plt.subplots(1, 3, figsize=(15, 4.6))
+    for ax, metric, title, yl in [(axs[0], "l1", "Hole L1 loss", "L1 in the hole"),
+                                  (axs[1], "lpips", "LPIPS loss", "LPIPS"),
+                                  (axs[2], "D", "Discriminator loss", "discriminator loss")]:
+        ys_all = []
         for m in sup:
             x, y = series(runs, m, metric)
             if x is not None:
-                ax.plot(x, smooth(y, 80), color=C[m], linestyle=styles[m], label=NAME[m].strip())
-        ax.set_title(title, loc="left"); ax.set_xlabel("training step"); ax.set_ylabel(lab)
-        if ax.lines:
-            ax.legend(fontsize=8)
-    fig.suptitle("Training losses over time (faint: raw values logged every 100 steps; bold: moving average)",
-                 x=0.01, ha="left", color=INK2, fontsize=9)
-    fig.tight_layout()
-    save(fig, "fig1_training_curves.png")
+                ys = smooth(y, 100); ys_all.append(ys)
+                ax.plot(x, ys, color=C[m], linestyle=ls[m], label=NAME[m])
+        trend_ylim(ax, ys_all)
+        ax.set_title(title, loc="left"); ax.set_xlabel("training step"); ax.set_ylabel(yl)
+        ax.xaxis.set_major_formatter(KSTEPS)
+    h, l = axs[0].get_legend_handles_labels()
+    fig.legend(h, l, loc="lower center", ncol=len(l), bbox_to_anchor=(0.5, -0.08))
+    fig.tight_layout(w_pad=3)
+    save(fig, "fig1b_training_supervised.png")
 
 
 # ======================================= results-based figures =======================================
@@ -185,30 +204,26 @@ def load_results(d):
 
 
 R = load_results(a.results)
-# the six methods of the report (4c and the baselines appear only in the ablation figure / the table)
-METHODS = ["mae", "stylegan_inversion", "stylegan_noninversion", "mirror_04a", "mirror_04b",
-           "repaint_uvit", "mirror_guided_repaint_uvit"]
 
 
 def fig_bars():
     if not R:
         print("fig2: no results in", a.results, "- skipped"); return
-    fig, axs = plt.subplots(1, 3, figsize=(13, 4.2), sharey=True)
+    xmax = max(R[(m, k)]["lpips"] + 1.96 * R[(m, k)].get("lpips_se", 0) for m in METHODS for k, _ in MASKS if (m, k) in R)
+    fig, axs = plt.subplots(1, 3, figsize=(15, 4.8), sharey=True, sharex=True)
     for ax, (mask, title) in zip(axs, MASKS):
         ms = [m for m in METHODS if (m, mask) in R]
         y = np.arange(len(ms))[::-1]
         for yi, m in zip(y, ms):
-            r = R[(m, mask)]
-            ax.barh(yi, r["lpips"], height=0.7, color=C[m], hatch=HATCH.get(m), edgecolor=SURF, linewidth=1)
-            ax.errorbar(r["lpips"], yi, xerr=1.96 * r.get("lpips_se", 0), color=INK, capsize=2, linewidth=1)
-            ax.text(r["lpips"] + 0.006, yi, f"{r['lpips']:.3f}", va="center", fontsize=8, color=INK2)
+            r = R[(m, mask)]; ci = 1.96 * r.get("lpips_se", 0)
+            ax.barh(yi, r["lpips"], height=0.68, color=C[m], edgecolor=SURF, linewidth=1.5)
+            ax.errorbar(r["lpips"], yi, xerr=ci, color=INK, capsize=3, linewidth=1.2)
+            ax.text(r["lpips"] + ci + 0.006, yi, f"{r['lpips']:.3f}", va="center", fontsize=10, color=INK2)
         ax.set_yticks(y); ax.set_yticklabels([NAME[m] for m in ms])
         ax.set_title(title, loc="left"); ax.set_xlabel("LPIPS in the hole (lower is better)")
         ax.grid(axis="y", visible=False)
-        ax.set_xlim(0, max(R[(m, mask)]["lpips"] for m in ms) * 1.18)
-    fig.suptitle("Final results: 1,500 test faces (300 for the slow methods 2, 5, 6); bars = mean, lines = 95% interval",
-                 x=0.01, ha="left", color=INK2, fontsize=9)
-    fig.tight_layout()
+        ax.set_xlim(0, xmax * 1.22)
+    fig.tight_layout(w_pad=2)
     save(fig, "fig2_lpips_by_method.png")
 
 
@@ -216,28 +231,32 @@ def fig_speed():
     ms = [m for m in METHODS if (m, "one_sided") in R]
     if not ms:
         print("fig3: no results - skipped"); return
-    fig, ax = plt.subplots(figsize=(7, 4.5))
+    fig, ax = plt.subplots(figsize=(8.5, 5))
+    gans = [m for m in ("stylegan_noninversion", "mirror_04a", "mirror_04b") if m in ms]
     for m in ms:
         r = R[(m, "one_sided")]
-        ax.scatter(r["sec_per_image"], r["lpips"], s=70, color=C[m], edgecolor=SURF, linewidth=2, zorder=3,
-                   marker="s" if m in HATCH else "o")
-    # labels, nudged apart vertically where points sit close together
-    placed = []
-    for m in sorted(ms, key=lambda m: R[(m, "one_sided")]["lpips"]):
-        r = R[(m, "one_sided")]; ly = r["lpips"]
-        for py in placed:
-            if abs(ly - py) < 0.006:
-                ly = py + 0.006
-        placed.append(ly)
-        ax.annotate(NAME[m].strip(), (r["sec_per_image"], r["lpips"]), xytext=(r["sec_per_image"] * 1.25, ly),
-                    va="center", fontsize=8, color=INK2,
-                    arrowprops=dict(arrowstyle="-", color=AXIS, linewidth=0.6) if abs(ly - r["lpips"]) > 1e-9 else None)
+        if m in gans:
+            continue
+        ax.scatter(r["sec_per_image"], r["lpips"], s=110, color=C[m], edgecolor=SURF, linewidth=1.5, zorder=3)
+        ax.annotate(NAME[m], (r["sec_per_image"], r["lpips"]), xytext=(10, 0), textcoords="offset points",
+                    va="center", fontsize=10, color=INK2)
+    if gans:      # the three supervised StyleGANs sit on the same spot: one marker group, one label
+        for k, m in enumerate(gans):
+            r = R[(m, "one_sided")]
+            ax.scatter(r["sec_per_image"], r["lpips"], s=110, color=C[m], edgecolor=SURF, linewidth=1.5, zorder=3 + k)
+        r = R[(gans[0], "one_sided")]
+        lp = " / ".join(f"{R[(m, 'one_sided')]['lpips']:.3f}" for m in gans)
+        ax.annotate("Supervised StyleGANs (3, 4a, 4b)\nLPIPS " + lp, (r["sec_per_image"], r["lpips"]), xytext=(12, 14),
+                    textcoords="offset points", va="bottom", fontsize=10, color=INK2)
     ax.set_xscale("log")
-    ax.set_xlabel("seconds per image (log scale, RTX 5090, 3 fills per image)")
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:g} s"))
+    ax.set_xlabel("time per image (log scale; GPU, 3 fills per image)")
     ax.set_ylabel("LPIPS, one-sided holes (lower is better)")
     ax.set_title("Quality against speed", loc="left")
     xs = [R[(m, "one_sided")]["sec_per_image"] for m in ms]
-    ax.set_xlim(min(xs) / 2, max(xs) * 12)
+    ax.set_xlim(min(xs) / 2, max(xs) * 15)
+    ys = [R[(m, "one_sided")]["lpips"] for m in ms]
+    ax.set_ylim(min(ys) - 0.015, max(ys) + 0.015)
     fig.tight_layout()
     save(fig, "fig3_quality_vs_speed.png")
 
@@ -257,7 +276,7 @@ def fig_hole_size():
                 frac[i] = float(ds._mask(i).mean())          # same seeded mask as in the evaluation, no image loading
     edges = np.quantile(list(frac.values()), np.linspace(0, 1, 6))
     centres = 100 * (edges[:-1] + edges[1:]) / 2
-    fig, ax = plt.subplots(figsize=(7.5, 4.5))
+    fig, ax = plt.subplots(figsize=(10, 5))
     for m in ms:
         r = R[(m, mask)]
         f = np.array([frac[i] for i in r["indices"]]); v = np.array(r["per_image"]["lpips"])
@@ -266,13 +285,15 @@ def fig_hole_size():
             sel = v[(f >= edges[b]) & ((f < edges[b + 1]) if b < 4 else (f <= edges[b + 1]))]
             se = sel.std(ddof=1) / math.sqrt(len(sel)) if len(sel) > 1 else 0
             mu.append(sel.mean() if len(sel) else np.nan); lo.append(mu[-1] - 1.96 * se); hi.append(mu[-1] + 1.96 * se)
-        ls = {"mirror_04b": "--", "mirror_04c": ":"}.get(m, "-")
-        ax.plot(centres, mu, color=C[m], linestyle=ls, marker="o", markersize=5, label=NAME[m].strip())
+        ax.plot(centres, mu, color=C[m], marker="o", markersize=6, label=NAME[m])
         ax.fill_between(centres, lo, hi, color=C[m], alpha=0.12, linewidth=0)
-    ax.set_xlabel("hole size (% of the image, five equal-count groups)")
+    ax.set_xlabel("hole size (% of the image; five groups of equal size)")
     ax.set_ylabel("LPIPS in the hole (lower is better)")
-    ax.set_title("LPIPS by hole size (random square holes; bands = 95% intervals)", loc="left")
-    ax.legend(fontsize=8, loc="upper left", bbox_to_anchor=(1.01, 1))
+    ax.set_title("LPIPS by hole size, random square holes", loc="left")
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:.0f}%"))
+    ax.legend(loc="upper left", bbox_to_anchor=(1.01, 1))
+    fig.text(0.01, -0.02, "Shaded bands: 95% intervals. StyleGAN non-inversion (3) and Mirror StyleGAN (4a) lie on top of each other.",
+             color=MUTED, fontsize=9)
     fig.tight_layout()
     save(fig, "fig4_lpips_vs_hole_size.png")
 
@@ -282,11 +303,12 @@ def paired(ma, mb, mask, metric="lpips"):
     if not ra or not rb or "per_image" not in ra or "per_image" not in rb:
         return None
     ia = dict(zip(ra["indices"], ra["per_image"][metric])); ib = dict(zip(rb["indices"], rb["per_image"][metric]))
-    d = np.array([ia[i] - ib[i] for i in sorted(set(ia) & set(ib))])
+    common = sorted(set(ia) & set(ib))
+    d = np.array([ia[i] - ib[i] for i in common])
     if len(d) < 2:
         return None
     mu, se = d.mean(), d.std(ddof=1) / math.sqrt(len(d))
-    base = np.mean([ib[i] for i in sorted(set(ia) & set(ib))])
+    base = np.mean([ib[i] for i in common])
     return 100 * mu / base, 100 * 1.96 * se / base, math.erfc(abs(mu / se) / math.sqrt(2)) if se > 0 else float("nan")
 
 
@@ -294,26 +316,34 @@ def fig_gain():
     variants = [m for m in ["mirror_04a", "mirror_04b", "mirror_04c"] if any((m, k) in R for k, _ in MASKS)]
     if not variants or not any(("stylegan_noninversion", k) in R for k, _ in MASKS):
         print("fig5: results missing - skipped"); return
-    fig, ax = plt.subplots(figsize=(8, 4.2))
-    off = {m: o for m, o in zip(variants, np.linspace(-0.22, 0.22, len(variants)))}
-    marker = {"mirror_04a": "o", "mirror_04b": "s", "mirror_04c": "D"}
-    for gi, (mask, title) in enumerate(MASKS):
-        for m in variants:
+    fig, ax = plt.subplots(figsize=(11, 5.2))
+    wbar = 0.26
+    tops, bots = [0.0], [0.0]
+    for gi, (mask, _) in enumerate(MASKS):
+        for k, m in enumerate(variants):
             res = paired(m, "stylegan_noninversion", mask)
             if res is None:
                 continue
             g, ci, p = res
-            ax.errorbar(gi + off[m], -g, yerr=ci, fmt=marker[m], color=C[m], markersize=7, capsize=3,
-                        markeredgecolor=INK2, label=NAME[m].strip() if gi == 0 else None)
+            gain = -g                                            # lower LPIPS = improvement, shown as a positive bar
+            x = gi + (k - (len(variants) - 1) / 2) * wbar
+            ax.bar(x, gain, width=wbar * 0.92, color=C[m], edgecolor=SURF, linewidth=1.5,
+                   label=NAME[m] if gi == 0 else None)
+            ax.errorbar(x, gain, yerr=ci, color=INK, capsize=3, linewidth=1.2)
             star = "***" if p < 0.001 else "**" if p < 0.01 else "*" if p < 0.05 else "n.s."
-            ax.text(gi + off[m], -g + ci + 0.25, star, ha="center", fontsize=8, color=INK2)
+            ytxt = max(gain + ci, 0) + 0.15
+            ax.text(x, ytxt, f"{gain:+.1f}%\n{star}", ha="center", va="bottom", fontsize=9.5, color=INK2, linespacing=1.1)
+            tops.append(ytxt + 0.9); bots.append(min(gain - ci, 0) - 0.3)
     ax.axhline(0, color=INK2, linewidth=1)
-    ax.set_xticks(range(len(MASKS))); ax.set_xticklabels([t for _, t in MASKS])
+    ax.set_ylim(min(bots), max(tops))
+    ax.set_xticks(range(len(MASKS))); ax.set_xticklabels([t for _, t in MASKS], fontsize=11)
     ax.grid(axis="x", visible=False)
-    ax.set_ylabel("LPIPS improvement over plain StyleGAN (%)\nabove 0 = mirror version is better")
-    ax.set_title("Ablation: LPIPS change of the mirror variants relative to plain StyleGAN (method 3)", loc="left")
-    ax.legend(fontsize=8, loc="upper right")
-    fig.text(0.01, -0.02, "Paired over 1,500 test faces; bars = 95% intervals.   *** p < 0.001   ** p < 0.01   * p < 0.05   n.s. not significant", color=MUTED, fontsize=8)
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:+.0f}%" if v else "0"))
+    ax.set_ylabel("LPIPS improvement over StyleGAN (3)")
+    ax.set_title("Ablation: effect of the mirror input, relative to StyleGAN non-inversion (3)", loc="left")
+    ax.legend(loc="upper right")
+    fig.text(0.01, -0.03, "Above 0: the mirror version is better. Paired comparison over 1,500 test faces; error bars = 95% intervals.\n"
+             "*** p < 0.001   ** p < 0.01   * p < 0.05   n.s. = not significant", color=MUTED, fontsize=9)
     fig.tight_layout()
     save(fig, "fig5_mirror_gain.png")
 
@@ -328,25 +358,24 @@ def fig_guidance():
     base = S.get(("repaint_uvit", "one_sided"))
     if not pts or not base:
         print("fig6: mirror sweep results not found in", a.sweep, "- skipped"); return
-    fig, axs = plt.subplots(1, 2, figsize=(11, 4))
-    groups = [("plain, guidance in last 20% of steps", lambda p: p[1] == 0.2 and p[2] == 0 and p[3] == 0, "#2a78d6", "o"),
-              ("plain, last 50%", lambda p: p[1] == 0.5 and p[2] == 0 and p[3] == 0, "#eb6834", "s"),
-              ("feathered + axis-aligned", lambda p: p[2] > 0 and p[3] == 1, "#1baf7a", "D")]
-    for ax, key, lab in [(axs[0], "lpips", "LPIPS, one-sided holes (lower is better)"),
-                         (axs[1], "diversity", "diversity between fills (higher = more varied)")]:
-        ax.axhline(base[key], color=INK2, linewidth=1.2, linestyle="--")
-        ax.text(0.205, base[key], " RePaint, no mirror", va="bottom", ha="right", fontsize=8, color=INK2)
-        for name, sel, col, mk in groups:
+    groups = [("guidance in the last 20% of steps", lambda p: p[1] == 0.2 and p[2] == 0 and p[3] == 0, "#2a78d6", "o", "-"),
+              ("guidance in the last 50% of steps", lambda p: p[1] == 0.5 and p[2] == 0 and p[3] == 0, "#6250d6", "s", "--"),
+              ("with softened edges + aligned axis", lambda p: p[2] > 0 and p[3] == 1, "#008300", "D", ":")]
+    fig, axs = plt.subplots(1, 2, figsize=(14, 4.8))
+    for ax, key, yl, title in [(axs[0], "lpips", "LPIPS, one-sided holes (lower is better)", "Method 6: LPIPS against guidance strength"),
+                               (axs[1], "diversity", "diversity between fills (higher = more varied)", "Method 6: diversity against guidance strength")]:
+        ax.axhline(base[key], color=C["repaint_uvit"], linewidth=2.2, linestyle="-")
+        ax.annotate("RePaint without guidance (5)", (1, base[key]), xycoords=("axes fraction", "data"), xytext=(-4, 5),
+                    textcoords="offset points", ha="right", va="bottom", fontsize=10, color=INK2)
+        for name, sel, col, mk, lsty in groups:
             g = sorted([p for p in pts if sel(p)], key=lambda p: p[0])
             if g:
-                ax.plot([p[0] for p in g], [p[4][key] for p in g], color=col, marker=mk, markersize=6, label=name)
-        ax.set_xlabel("mirror guidance strength (lambda)"); ax.set_ylabel(lab)
-    axs[0].set_title("Method 6: LPIPS against mirror guidance strength", loc="left")
-    axs[1].set_title("Method 6: diversity against mirror guidance strength", loc="left")
-    axs[0].legend(fontsize=8)
-    fig.text(0.01, -0.03, "One-sided holes, 48 test faces, 3 fills each. Dashed line: RePaint without mirror guidance (method 5).",
-             color=MUTED, fontsize=8)
-    fig.tight_layout()
+                ax.plot([p[0] for p in g], [p[4][key] for p in g], color=col, marker=mk, markersize=7, linestyle=lsty, label=name)
+        ax.set_xlabel("guidance strength (lambda)"); ax.set_ylabel(yl); ax.set_title(title, loc="left")
+    h, l = axs[0].get_legend_handles_labels()
+    fig.legend(h, l, loc="lower center", ncol=len(l), bbox_to_anchor=(0.5, -0.1))
+    fig.text(0.01, -0.16, "Mirror-guided RePaint (6), one-sided holes, 48 test faces with 3 fills each.", color=MUTED, fontsize=9)
+    fig.tight_layout(w_pad=3)
     save(fig, "fig6_mirror_guidance.png")
 
 
