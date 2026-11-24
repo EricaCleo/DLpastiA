@@ -1,7 +1,7 @@
 """WHEN should the mirror nudge happen? Measures our diffusion model's timeline, following Asyrp (Kwon et al., ICLR 2023,
 section 4 / figure 3), so that the guidance interval is CHOSEN BY A MEASUREMENT instead of guessed.
 
-For real test faces x and every noise level t (pure noise t = 999 ... clean t = 0):
+For real (training) faces x and every noise level t (pure noise t = 999 ... clean t = 0):
     x_t  = x noised to level t                       (what the sampler holds at that moment)
     P_t  = the model's predicted clean face from x_t  ("predicted x0")
     LPIPS(x, P_t)  how far the model's current idea of the face still is from the final face
@@ -34,6 +34,8 @@ ap.add_argument("--n", type=int, default=32, help="test faces")
 ap.add_argument("--every", type=int, default=20, help="measure every this many timesteps (of 1000)")
 ap.add_argument("--mask", default="one_sided", choices=["one_sided", "square", "centre"], help="holes for the hole-only curves")
 ap.add_argument("--image-size", type=int, default=128)
+ap.add_argument("--split", default="train_split", choices=["train_split", "test_split"],
+                help="faces to measure on (default: training faces, so the chosen setting is not tuned on the test set)")
 ap.add_argument("--batch", type=int, default=16)
 ap.add_argument("--edit-threshold", type=float, default=0.33, help="Asyrp: LPIPS(x, P_t_edit)")
 ap.add_argument("--boost-threshold", type=float, default=1.2, help="Asyrp: LPIPS(x, x_t_boost)")
@@ -43,13 +45,16 @@ ap.add_argument("--seed", type=int, default=0)
 ap.add_argument("--out", default=str(ROOT / "outputs"))
 a = ap.parse_args()
 
-from src.data import get_datasets, load_config
+from src.data import load_config
+from src.data.preprocessing import AFHQInpainting, list_images
 from src.diffusion import Diffusion, load_eps_model
 
 dev = a.device
 torch.manual_seed(a.seed)
 cfg = load_config(); cfg["image_size"] = a.image_size
-_, ds = get_datasets(cfg, mask_type=a.mask)
+# TRAINING faces (with fixed, seeded holes): t_edit is a setting we choose, so it must not be chosen on the test faces
+ds = AFHQInpainting(list_images(cfg["raw_dir"], cfg[a.split]), size=a.image_size, train=False,
+                    ratio_range=tuple(cfg["mask_ratio"]), seed=cfg["test_seed"], mask_type=a.mask)
 idx = list(range(0, len(ds), max(1, len(ds) // a.n)))[: a.n]
 X = torch.stack([ds[i][0] for i in idx]); M = torch.stack([ds[i][1] for i in idx])
 model = load_eps_model(a.ckpt, dev)
