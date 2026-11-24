@@ -360,7 +360,7 @@ def fig_guidance():
         print("fig6: mirror sweep results not found in", a.sweep, "- skipped"); return
     groups = [("guidance in the last 20% of steps", lambda p: p[1] == 0.2 and p[2] == 0 and p[3] == 0, "#2a78d6", "o", "-"),
               ("guidance in the last 50% of steps", lambda p: p[1] == 0.5 and p[2] == 0 and p[3] == 0, "#6250d6", "s", "--"),
-              ("with softened edges + aligned axis", lambda p: p[2] > 0 and p[3] == 1, "#008300", "D", ":")]
+              ("with softened edges + aligned axis", lambda p: p[2] > 0 and p[3] == 1 and p[1] <= 0.5, "#008300", "D", ":")]
     fig, axs = plt.subplots(1, 2, figsize=(14, 4.8))
     for ax, key, yl, title in [(axs[0], "lpips", "LPIPS, one-sided holes (lower is better)", "Method 6: LPIPS against guidance strength"),
                                (axs[1], "diversity", "diversity between fills (higher = more varied)", "Method 6: diversity against guidance strength")]:
