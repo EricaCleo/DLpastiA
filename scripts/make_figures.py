@@ -363,8 +363,11 @@ def fig_guidance():
         print("fig6: mirror sweep results not found in", a.sweep, "- skipped"); return
     groups = [("guidance in the last 20% of steps", lambda p: p[1] == 0.2 and p[2] == 0 and p[3] == 0, "#2a78d6", "o", "-"),
               ("guidance in the last 50% of steps", lambda p: p[1] == 0.5 and p[2] == 0 and p[3] == 0, "#6250d6", "s", "--"),
-              ("with softened edges + aligned axis", lambda p: p[2] > 0 and p[3] == 1 and p[1] <= 0.5, "#008300", "D", ":"),
-              ("guidance in the FIRST 30% of steps", lambda p: p[3] == 9 and p[1] == 0.3, "#eb6834", "^", "-")]
+              ("with softened edges + aligned axis", lambda p: p[2] > 0 and p[3] == 1 and p[1] <= 0.5, "#008300", "D", ":")]
+    early_cols = ["#eb6834", "#e34948", "#eda100", "#1baf7a", "#e87ba4"]
+    for k, f in enumerate(sorted({p[1] for p in pts if p[3] == 9})):       # one line per EARLY guidance range
+        groups.append((f"guidance in the FIRST {round(f * 100)}% of steps", lambda p, f=f: p[3] == 9 and p[1] == f,
+                       early_cols[k % len(early_cols)], "^", "-"))
     fig, axs = plt.subplots(1, 2, figsize=(14, 4.8))
     for ax, key, yl, title in [(axs[0], "lpips", "LPIPS, one-sided holes (lower is better)", "Method 6: LPIPS against guidance strength"),
                                (axs[1], "diversity", "diversity between fills (higher = more varied)", "Method 6: diversity against guidance strength")]:
@@ -377,8 +380,8 @@ def fig_guidance():
                 ax.plot([p[0] for p in g], [p[4][key] for p in g], color=col, marker=mk, markersize=7, linestyle=lsty, label=name)
         ax.set_xlabel("guidance strength (lambda)"); ax.set_ylabel(yl); ax.set_title(title, loc="left")
     h, l = axs[0].get_legend_handles_labels()
-    fig.legend(h, l, loc="lower center", ncol=len(l), bbox_to_anchor=(0.5, -0.1))
-    fig.text(0.01, -0.16, "Mirror-guided RePaint (6), one-sided holes, 48 test faces with 3 fills each.", color=MUTED, fontsize=9)
+    fig.legend(h, l, loc="lower center", ncol=min(len(l), 3), bbox_to_anchor=(0.5, -0.16))
+    fig.text(0.01, -0.22, "Mirror-guided RePaint (6), one-sided holes, 48 test faces with 3 fills each.", color=MUTED, fontsize=9)
     fig.tight_layout(w_pad=3)
     save(fig, "fig6_mirror_guidance.png")
 
