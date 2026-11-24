@@ -1,7 +1,7 @@
 #!/bin/bash
 # Runs one pipeline STAGE (several commands in a row, on the same GPU, no re-queueing).
 #   bash slurm/run_pipeline.sh <stage>
-# Stages:  train_ddpm | eval_diffusion | train_mae | eval_mae | train_g_uncond | train_comod | train_mirror_04a | train_mirror_04b | eval_gan | train_uvit | eval_uvit | sweep_mirror | train_mirror_04c | final_eval | ablate_mirror | extend_gan | finetune_gan | eval_hybrid | sweep_early | final_early | timing_study
+# Stages:  train_ddpm | eval_diffusion | train_mae | eval_mae | train_g_uncond | train_comod | train_mirror_04a | train_mirror_04b | eval_gan | train_uvit | eval_uvit | sweep_mirror | train_mirror_04c | final_eval | ablate_mirror | extend_gan | finetune_gan | eval_hybrid | sweep_early | final_early | timing_study | train_mirror_04c_tol
 # Override settings with environment variables, e.g.  N=100 K=3 RESAMPLES=10 bash slurm/run_pipeline.sh eval_diffusion
 # Add new stages (train_mae, train_gan, ...) as new `case` branches when those methods exist.
 set -e
@@ -272,5 +272,17 @@ case "$STAGE" in
       for lam in ${TRAJ_LAMS:-0.1 1.0}; do python scripts/diffusion_trajectory.py --lam "$lam" --resamples "$RESAMPLES"; done
       python scripts/make_timing_figures.py
     fi ;;
+  train_mirror_04c_tol) # Method 4c: mirror input + TOLERANT symmetry loss (rough shapes only), trained exactly like 4b
+    # (same weight SYM, same number of steps), then evaluated: 48 faces for the pictures + the final 1,500 faces.
+    acquire_lock mirror_04c_tol
+    python scripts/m4_mirror_conditioned.py train --symmetry "${SYM:-0.1}" --symmetry-mode tolerant --image-size "$SIZE" \
+      --max-hours 200 --max-steps "$TARGET_STEPS" --ckpt checkpoints/mirror_04c_tol_128.pt
+    rm -rf "$LOCKDIR"; trap - EXIT INT TERM
+    for mask in one_sided centre square; do
+      echo "=== mirror_04c_tol / $mask (48 faces) ==="
+      python scripts/m4_mirror_conditioned.py eval --ckpt checkpoints/mirror_04c_tol_128.pt --name mirror_04c_tol --mask "$mask" --n 48 --K 3 --image-size "$SIZE" --save-dir "outputs/samples/mirror_04c_tol_${mask}"
+      echo "=== mirror_04c_tol / $mask (final) ==="
+      RESULTS_DIR=outputs/results_final python scripts/m4_mirror_conditioned.py eval --ckpt checkpoints/mirror_04c_tol_128.pt --name mirror_04c_tol --mask "$mask" --n "${N_FAST:-1500}" --K 3 --batch 32 --image-size "$SIZE"
+    done ;;
   *) echo "unknown stage: $STAGE"; exit 2 ;;
 esac

@@ -2,7 +2,8 @@
 
 mode 'uncond' : unconditional StyleGAN2-style generator (Method 2, used for inversion). Loss: non-saturating + R1.
 mode 'comod'  : supervised inpainting generator, input = masked image + mask (Method 3).
-mode 'mirror' : same, plus the flipped masked image and mask (Method 4); sym_w > 0 adds the symmetry loss (04b).
+mode 'mirror' : same, plus the flipped masked image and mask (Method 4); sym_w > 0 adds a symmetry loss:
+               sym_mode 'strict' (04b, pixel by pixel) or 'tolerant' (04c, rough shapes only; src/gan/symmetry.py).
 Supervised modes: discriminator sees (composited image, mask); G loss = adversarial + L1 (hole) + LPIPS (+ symmetry).
 """
 import copy
@@ -12,6 +13,7 @@ from pathlib import Path
 import torch
 import torch.nn.functional as F
 
+from .symmetry import strict_symmetry_loss, tolerant_symmetry_loss
 from .augment import diff_augment
 from .inputs import INPUTS
 from .networks import CoModGenerator, Discriminator, UncondGenerator
@@ -42,7 +44,7 @@ def _random_flip(x, m, xm):
 
 
 def train_gan(cfg, loader, ckpt_path, max_hours=22.0, device="cuda", lr=2e-3, r1_gamma=1.0, adv_w=1.0, l1_w=1.0,
-              lpips_w=1.0, sym_w=0.0, flip=True, ema_kimg=10.0, save_every=1000, sample_every=2000, log_every=100,
+              lpips_w=1.0, sym_w=0.0, sym_mode="strict", flip=True, ema_kimg=10.0, save_every=1000, sample_every=2000, log_every=100,
               sample_dir=None, r1_every=16, max_steps=None, diffaug=False):
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
@@ -127,8 +129,8 @@ def train_gan(cfg, loader, ckpt_path, max_hours=22.0, device="cuda", lr=2e-3, r1
             if lp is not None:
                 pl = lp(comp, x).mean()
                 lossG = lossG + lpips_w * pl; parts["lpips"] = pl.item()
-            if sym_w > 0:
-                sym = (comp - torch.flip(comp, [3])).abs().mean()
+            if sym_w > 0:                                     # 4b: strict, 4c: tolerant (see src/gan/symmetry.py)
+                sym = tolerant_symmetry_loss(comp, x) if sym_mode == "tolerant" else strict_symmetry_loss(comp)
                 lossG = lossG + sym_w * sym; parts["sym"] = sym.item()
         optG.zero_grad(set_to_none=True)
         lossG.backward()

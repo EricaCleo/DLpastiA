@@ -41,15 +41,15 @@ OUT = Path(a.out); OUT.mkdir(parents=True, exist_ok=True)
 # ---------------- style: one fixed colour per method in every figure (validated categorical palette) ----------------
 INK, INK2, MUTED, GRID, AXIS, SURF = "#0b0b0b", "#3d3c39", "#6b6a65", "#e6e5df", "#b9b8b2", "#ffffff"
 C = {"mae": "#2a78d6", "stylegan_inversion": "#eb6834", "stylegan_noninversion": "#1baf7a",
-     "mirror_04a": "#eda100", "mirror_04b": "#b37900", "mirror_04c": "#f5c95c",
+     "mirror_04a": "#eda100", "mirror_04b": "#b37900", "mirror_04c": "#f5c95c", "mirror_04c_tol": "#f5c95c",
      "repaint_uvit": "#e87ba4", "mirror_guided_repaint_uvit": "#008300"}
 NAME = {"mae": "MAE (1)", "stylegan_inversion": "StyleGAN inversion (2)", "stylegan_noninversion": "StyleGAN non-inversion (3)",
         "mirror_04a": "Mirror StyleGAN (4a)", "mirror_04b": "Mirror StyleGAN + symmetry loss (4b)",
-        "mirror_04c": "Mirror StyleGAN, aligned axis (4c)",
+        "mirror_04c": "Mirror StyleGAN, aligned axis (old)", "mirror_04c_tol": "Mirror StyleGAN + tolerant symmetry loss (4c)",
         "repaint_uvit": "RePaint (5)", "mirror_guided_repaint_uvit": "Mirror-guided RePaint (6)"}
 MASKS = [("one_sided", "One-sided holes"), ("square", "Random square holes"), ("centre", "Centre holes")]
-# the six methods of the report (variant 4c was dropped from the report and is not shown)
-METHODS = ["stylegan_inversion", "stylegan_noninversion", "mirror_04a", "mirror_04b",
+# the methods of the report (4c = tolerant symmetry loss; the earlier aligned-mirror variant is not shown)
+METHODS = ["stylegan_inversion", "stylegan_noninversion", "mirror_04a", "mirror_04b", "mirror_04c_tol",
            "repaint_uvit", "mirror_guided_repaint_uvit"]          # MAE was dropped from the report
 plt.rcParams.update({"font.size": 11, "axes.edgecolor": AXIS, "axes.labelcolor": INK2, "xtick.color": INK2,
                      "ytick.color": INK2, "axes.titlesize": 12, "axes.titleweight": "bold", "axes.titlecolor": INK,
@@ -100,6 +100,8 @@ def parse_logs(pattern):
                     sym = float(re.search(r"\| sym ([\d.]+)", line).group(1)) if "| sym" in line else 0.0
                     model = {"uncond": "g_uncond", "comod": "stylegan_noninversion", "mirror_aligned": "mirror_04c"}.get(
                         mode, "mirror_04b" if sym > 0 else "mirror_04a")
+                    if "| sym mode tolerant" in line:
+                        model = "mirror_04c_tol"
                     if "train masks mix" in line:
                         model += "_ft"
                 elif "| arch uvit" in line:
@@ -170,10 +172,10 @@ def fig_training():
     save(fig, "fig1a_training_unsupervised.png")
 
     # ---- 1b: the supervised GANs (same training length, so the curves can be compared directly)
-    sup = [m for m in ["stylegan_noninversion", "mirror_04a", "mirror_04b"] if m in runs]
+    sup = [m for m in ["stylegan_noninversion", "mirror_04a", "mirror_04b", "mirror_04c_tol"] if m in runs]
     if not sup:
         print("fig1b: no supervised GAN logs - skipped"); return
-    ls = {"stylegan_noninversion": "-", "mirror_04a": "-", "mirror_04b": "--", "mirror_04c": ":"}
+    ls = {"stylegan_noninversion": "-", "mirror_04a": "-", "mirror_04b": "--", "mirror_04c": ":", "mirror_04c_tol": ":"}
     fig, axs = plt.subplots(1, 3, figsize=(15, 4.6))
     for ax, metric, title, yl in [(axs[0], "l1", "Hole L1 loss", "L1 in the hole"),
                                   (axs[1], "lpips", "LPIPS loss", "LPIPS"),
@@ -312,7 +314,7 @@ def paired(ma, mb, mask, metric="lpips"):
 
 
 def fig_gain():
-    variants = [m for m in ["mirror_04a", "mirror_04b"] if any((m, k) in R for k, _ in MASKS)]
+    variants = [m for m in ["mirror_04a", "mirror_04b", "mirror_04c_tol"] if any((m, k) in R for k, _ in MASKS)]
     if not variants or not any(("stylegan_noninversion", k) in R for k, _ in MASKS):
         print("fig5: results missing - skipped"); return
     fig, ax = plt.subplots(figsize=(11, 5.2))

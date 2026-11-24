@@ -1,5 +1,6 @@
-"""Method 4: Mirror-conditioned StyleGAN (supervised). Variants: 04a = no symmetry loss, 04b = --symmetry 0.1,
-04c = --aligned (mirror about the face's own symmetry axis).
+"""Method 4: Mirror-conditioned StyleGAN (supervised). Variants: 04a = no symmetry loss, 04b = --symmetry 0.1 (strict),
+04c = --symmetry 0.1 --symmetry-mode tolerant (rough shapes only). (--aligned: an earlier, dropped variant.)
+    python scripts/m4_mirror_conditioned.py train --symmetry 0.1 --symmetry-mode tolerant --ckpt checkpoints/mirror_04c_tol_128.pt
     python scripts/m4_mirror_conditioned.py train --aligned --ckpt checkpoints/mirror_04c_128.pt
     python scripts/m4_mirror_conditioned.py train --ckpt checkpoints/mirror_04a_128.pt
     python scripts/m4_mirror_conditioned.py train --symmetry 0.1 --ckpt checkpoints/mirror_04b_128.pt
@@ -13,6 +14,8 @@ ap = argparse.ArgumentParser()
 sub = ap.add_subparsers(dest="cmd", required=True)
 t = sub.add_parser("train"); add_gan_train_args(t, "checkpoints/mirror_04a_128.pt")
 t.add_argument("--symmetry", type=float, default=0.0, help="symmetry-loss weight (0 = variant 04a, e.g. 0.1 = 04b)")
+t.add_argument("--symmetry-mode", default="strict", choices=["strict", "tolerant"],
+               help="strict = 4b (pixel by pixel); tolerant = 4c (outlines, 16x16, small shift, weighted by the real face)")
 t.add_argument("--aligned", action="store_true", help="variant 04c: mirror the input about the face's own symmetry axis, not the image centre")
 e = sub.add_parser("eval"); add_eval_args(e)
 e.add_argument("--ckpt", default="checkpoints/mirror_04a_128.pt")
@@ -22,7 +25,7 @@ e.add_argument("--ablate", default="none", choices=["none", "blank", "shuffled"]
 a = ap.parse_args()
 
 if a.cmd == "train":
-    gan_train("mirror_aligned" if a.aligned else "mirror", a, sym_w=a.symmetry)
+    gan_train("mirror_aligned" if a.aligned else "mirror", a, sym_w=a.symmetry, sym_mode=a.symmetry_mode)
 else:
     from _common import device
     from src.methods.mirror_conditioned import MirrorConditionedInpainter
