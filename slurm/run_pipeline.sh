@@ -1,7 +1,7 @@
 #!/bin/bash
 # Runs one pipeline STAGE (several commands in a row, on the same GPU, no re-queueing).
 #   bash slurm/run_pipeline.sh <stage>
-# Stages:  train_ddpm | eval_diffusion | train_mae | eval_mae | train_g_uncond | train_comod | train_mirror_04a | train_mirror_04b | eval_gan | train_uvit | eval_uvit | sweep_mirror | train_mirror_04c | final_eval | ablate_mirror | extend_gan | finetune_gan | eval_hybrid
+# Stages:  train_ddpm | eval_diffusion | train_mae | eval_mae | train_g_uncond | train_comod | train_mirror_04a | train_mirror_04b | eval_gan | train_uvit | eval_uvit | sweep_mirror | train_mirror_04c | final_eval | ablate_mirror | extend_gan | finetune_gan | eval_hybrid | sweep_early | final_early
 # Override settings with environment variables, e.g.  N=100 K=3 RESAMPLES=10 bash slurm/run_pipeline.sh eval_diffusion
 # Add new stages (train_mae, train_gan, ...) as new `case` branches when those methods exist.
 set -e
@@ -214,6 +214,23 @@ case "$STAGE" in
           RESULTS_DIR=outputs/results_final python scripts/m6_mirror_guided_repaint.py eval --ckpt "$U" --gan-init "$G" --start-frac "$f" --name "$NAME" --mask "$mask" --n "$NS" --K "$K" --image-size "$SIZE" --resamples "$RESAMPLES"
         done
       done
+    done ;;
+  sweep_early)      # Method 6 with guidance only in the FIRST part of sampling (rough layout), one-sided holes, 48 faces.
+    # Early steps barely react to small nudges, so larger strengths are tried. Same 48 faces as the earlier sweep.
+    U="${UVIT_CKPT:-checkpoints/uvit_128.pt}"
+    for cfg in ${EARLY_CFGS:-0.1:0.3 0.3:0.3 0.5:0.3 1.0:0.3 0.3:0.5}; do    # strength:fraction pairs
+      LAM="${cfg%%:*}"; FRAC="${cfg##*:}"
+      NAME="mirror_early_uvit_l${LAM}_f${FRAC}"
+      echo "=== mirror guidance EARLY, lam=$LAM first $FRAC of steps ==="
+      python scripts/m6_mirror_guided_repaint.py eval --ckpt "$U" --adaptive --lam "$LAM" --guide-frac "$FRAC" --guide-when early \
+        --name "$NAME" --mask one_sided --n "$N" --K "$K" --image-size "$SIZE" --resamples "$RESAMPLES" --save-dir "outputs/samples/${NAME}_one_sided"
+    done ;;
+  final_early)      # the chosen early setting (LAM, FRAC) on all three hole types, 300 faces, into the final results
+    U="${UVIT_CKPT:-checkpoints/uvit_128.pt}"; LAM="${LAM:?set LAM}"; FRAC="${FRAC:-0.3}"
+    for mask in one_sided centre square; do
+      echo "=== mirror guidance EARLY lam=$LAM frac=$FRAC / $mask (final, ${N_SLOW:-300} faces) ==="
+      RESULTS_DIR=outputs/results_final python scripts/m6_mirror_guided_repaint.py eval --ckpt "$U" --adaptive --lam "$LAM" --guide-frac "$FRAC" --guide-when early \
+        --name mirror_guided_repaint_early_uvit --mask "$mask" --n "${N_SLOW:-300}" --K "$K" --image-size "$SIZE" --resamples "$RESAMPLES"
     done ;;
   *) echo "unknown stage: $STAGE"; exit 2 ;;
 esac

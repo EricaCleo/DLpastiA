@@ -355,18 +355,22 @@ def fig_guidance():
         mm = re.match(r"mirror_adaptive_uvit_l([\d.]+)_f([\d.]+)_k(\d+)_a(\d)$", meth)
         if mm and mask == "one_sided":
             pts.append((float(mm.group(1)), float(mm.group(2)), int(mm.group(3)), int(mm.group(4)), r))
+        me = re.match(r"mirror_early_uvit_l([\d.]+)_f([\d.]+)$", meth)
+        if me and mask == "one_sided":
+            pts.append((float(me.group(1)), float(me.group(2)), 0, 9, r))        # align flag 9 = early guidance
     base = S.get(("repaint_uvit", "one_sided"))
     if not pts or not base:
         print("fig6: mirror sweep results not found in", a.sweep, "- skipped"); return
     groups = [("guidance in the last 20% of steps", lambda p: p[1] == 0.2 and p[2] == 0 and p[3] == 0, "#2a78d6", "o", "-"),
               ("guidance in the last 50% of steps", lambda p: p[1] == 0.5 and p[2] == 0 and p[3] == 0, "#6250d6", "s", "--"),
-              ("with softened edges + aligned axis", lambda p: p[2] > 0 and p[3] == 1 and p[1] <= 0.5, "#008300", "D", ":")]
+              ("with softened edges + aligned axis", lambda p: p[2] > 0 and p[3] == 1 and p[1] <= 0.5, "#008300", "D", ":"),
+              ("guidance in the FIRST 30% of steps", lambda p: p[3] == 9 and p[1] == 0.3, "#eb6834", "^", "-")]
     fig, axs = plt.subplots(1, 2, figsize=(14, 4.8))
     for ax, key, yl, title in [(axs[0], "lpips", "LPIPS, one-sided holes (lower is better)", "Method 6: LPIPS against guidance strength"),
                                (axs[1], "diversity", "diversity between fills (higher = more varied)", "Method 6: diversity against guidance strength")]:
         ax.axhline(base[key], color=C["repaint_uvit"], linewidth=2.2, linestyle="-")
-        ax.annotate("RePaint without guidance (5)", (1, base[key]), xycoords=("axes fraction", "data"), xytext=(-4, 5),
-                    textcoords="offset points", ha="right", va="bottom", fontsize=10, color=INK2)
+        ax.annotate("RePaint without guidance (5)", (0, base[key]), xycoords=("axes fraction", "data"), xytext=(6, 5),
+                    textcoords="offset points", ha="left", va="bottom", fontsize=10, color=INK2)
         for name, sel, col, mk, lsty in groups:
             g = sorted([p for p in pts if sel(p)], key=lambda p: p[0])
             if g:

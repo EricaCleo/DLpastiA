@@ -39,6 +39,7 @@ NAMES = {
     "stylegan_noninversion_ft": "StyleGAN non-inversion, fine-tuned (low lr, harder holes)",
     "mirror_04a_ft": "Mirror-conditioned StyleGAN (04a), fine-tuned (low lr, harder holes)",
     "mirror_guided_repaint_uvit": "Mirror-guided RePaint (U-ViT)",
+    "mirror_guided_repaint_early_uvit": "Mirror-guided RePaint (U-ViT), guidance early",
 }
 
 import re
@@ -48,6 +49,9 @@ def pretty(name):
     """Full method name for a heading; understands the mirror-sweep folder names (..._l0.05_f0.5_k9_a1)."""
     if name in NAMES:
         return NAMES[name]
+    e = re.match(r"mirror_early_uvit_l([\d.]+)_f([\d.]+)$", name)
+    if e:
+        return f"Mirror-guided RePaint (U-ViT), strength {e.group(1)}, FIRST {round(float(e.group(2)) * 100)}% of steps"
     h = re.match(r"(mirror_gan|stylegan)_repaint_s([\d.]+)$", name)
     if h:
         first = "Mirror-conditioned StyleGAN (04a)" if h.group(1) == "mirror_gan" else "StyleGAN non-inversion"

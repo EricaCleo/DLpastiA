@@ -24,7 +24,9 @@ e.add_argument("--max-shift", type=int, default=16, help="largest axis shift sea
 e.add_argument("--s-lo", type=float, default=0.0, help="symmetry score that maps to weight 0 (real faces: about 0.65)")
 e.add_argument("--s-hi", type=float, default=1.0, help="symmetry score that maps to weight 1 (real faces: about 0.9)")
 e.add_argument("--feather", type=int, default=0, help="blur the guidance mask by this many pixels (e.g. 9) to avoid hard seams; 0 = off")
-e.add_argument("--guide-frac", type=float, default=1.0, help="apply guidance only in the last fraction of the steps (1.0 = all steps)")
+e.add_argument("--guide-frac", type=float, default=1.0, help="fraction of the steps with guidance (1.0 = all steps)")
+e.add_argument("--guide-when", default="late", choices=["late", "early"],
+               help="late = the LAST guide-frac of the steps (detail); early = the FIRST guide-frac (rough layout), then normal RePaint")
 g = e.add_mutually_exclusive_group()
 g.add_argument("--adaptive", action="store_true", help="scale guidance by the face's symmetry score (default)")
 g.add_argument("--fixed", action="store_true", help="constant guidance strength")
@@ -49,7 +51,7 @@ if a.gan_init:
     run_eval(m, a)
     raise SystemExit
 adaptive = not a.fixed
-m = MirrorGuidedRePaint(load_eps_model(a.ckpt, device()), lam=a.lam, adaptive=adaptive, guide_frac=a.guide_frac, feather=a.feather, align=a.align, max_shift=a.max_shift, s_lo=a.s_lo, s_hi=a.s_hi, steps=a.steps,
+m = MirrorGuidedRePaint(load_eps_model(a.ckpt, device()), lam=a.lam, adaptive=adaptive, guide_frac=a.guide_frac, guide_when=a.guide_when, feather=a.feather, align=a.align, max_shift=a.max_shift, s_lo=a.s_lo, s_hi=a.s_hi, steps=a.steps,
                         jump_length=a.jump_length, resamples=a.resamples, device=device())
 m.name = a.name or ("mirror_repaint_adaptive" if adaptive else "mirror_repaint_fixed")
 run_eval(m, a)
