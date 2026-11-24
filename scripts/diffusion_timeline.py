@@ -111,7 +111,8 @@ frac = lambda t: (1000 - t) / 1000
 print(f"\nt_edit  (LPIPS(x, P_t) = {a.edit_threshold}, whole face): t = {t_edit}  -> guide the FIRST {frac(t_edit):.2f} of the steps")
 print(f"t_edit  (same relative point, inside the hole):  t = {t_edit_hole}  -> guide the FIRST {frac(t_edit_hole):.2f} of the steps")
 print(f"t_boost (LPIPS(x, x_t) = {a.boost_threshold}):                     t = {t_boost}  -> the LAST {1 - frac(t_boost):.2f} of the steps")
-print(f"use:  --guide-when early --guide-frac {frac(t_edit):.2f}")
+print(f"rho = {ratio:.3f}  (relative threshold: phi_t = hole distance / hole distance at pure noise)")
+print(f"use:  --guide-when early --guide-frac {frac(t_edit_hole):.2f}   (hole-based t_edit; whole-face rule gives {frac(t_edit):.2f})")
 
 import matplotlib
 matplotlib.use("Agg")
