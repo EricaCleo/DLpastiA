@@ -311,9 +311,9 @@ def fig_gain():
     ax.set_xticks(range(len(MASKS))); ax.set_xticklabels([t for _, t in MASKS])
     ax.grid(axis="x", visible=False)
     ax.set_ylabel("LPIPS improvement over plain StyleGAN (%)\nabove 0 = mirror version is better")
-    ax.set_title("Ablation: what the mirror adds (paired over 1,500 faces, 95% intervals)", loc="left")
+    ax.set_title("Ablation: LPIPS change of the mirror variants relative to plain StyleGAN (method 3)", loc="left")
     ax.legend(fontsize=8, loc="upper right")
-    fig.text(0.01, -0.02, "*** p < 0.001   ** p < 0.01   * p < 0.05   n.s. not significant (paired test)", color=MUTED, fontsize=8)
+    fig.text(0.01, -0.02, "Paired over 1,500 test faces; bars = 95% intervals.   *** p < 0.001   ** p < 0.01   * p < 0.05   n.s. not significant", color=MUTED, fontsize=8)
     fig.tight_layout()
     save(fig, "fig5_mirror_gain.png")
 
@@ -341,10 +341,10 @@ def fig_guidance():
             if g:
                 ax.plot([p[0] for p in g], [p[4][key] for p in g], color=col, marker=mk, markersize=6, label=name)
         ax.set_xlabel("mirror guidance strength (lambda)"); ax.set_ylabel(lab)
-    axs[0].set_title("Method 6: forcing the mirror into diffusion hurts", loc="left")
-    axs[1].set_title("...and makes the fills less varied", loc="left")
+    axs[0].set_title("Method 6: LPIPS against mirror guidance strength", loc="left")
+    axs[1].set_title("Method 6: diversity against mirror guidance strength", loc="left")
     axs[0].legend(fontsize=8)
-    fig.text(0.01, -0.03, "48 test faces, 3 fills each. Every setting is worse than plain RePaint; stronger guidance is worse.",
+    fig.text(0.01, -0.03, "One-sided holes, 48 test faces, 3 fills each. Dashed line: RePaint without mirror guidance (method 5).",
              color=MUTED, fontsize=8)
     fig.tight_layout()
     save(fig, "fig6_mirror_guidance.png")
