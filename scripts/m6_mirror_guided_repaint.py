@@ -33,12 +33,18 @@ g.add_argument("--fixed", action="store_true", help="constant guidance strength"
 e.add_argument("--gan-init", default=None, help="version 2: checkpoint of the GAN that makes the first fill (e.g. checkpoints/mirror_04a_128.pt)")
 e.add_argument("--start-frac", type=float, default=0.3, help="version 2: fraction of the diffusion steps used to refine the GAN fill")
 e.add_argument("--name", default=None, help="result name (default mirror_repaint_adaptive / mirror_repaint_fixed / mirror_gan_repaint)")
+e.add_argument("--asymmetric", action="store_true",
+               help="Asyrp-style update: change only the predicted clean face, keep the original direction (much stronger early)")
+e.add_argument("--seed", type=int, default=None, help="fix the random noise, so different guidance settings are compared on identical noise")
 a = ap.parse_args()
 
 if a.cmd == "train":
     raise SystemExit("Method 6 needs no training: it reuses the model from `python scripts/m5_repaint.py train`.")
 from src.diffusion import load_eps_model
 from src.methods.mirror_diffusion import MirrorGANRefinedRePaint, MirrorGuidedRePaint
+if a.seed is not None:
+    import torch
+    torch.manual_seed(a.seed)
 if a.gan_init:
     from src.gan import load_generator
     from src.methods.mirror_conditioned import MirrorConditionedInpainter
@@ -51,7 +57,7 @@ if a.gan_init:
     run_eval(m, a)
     raise SystemExit
 adaptive = not a.fixed
-m = MirrorGuidedRePaint(load_eps_model(a.ckpt, device()), lam=a.lam, adaptive=adaptive, guide_frac=a.guide_frac, guide_when=a.guide_when, feather=a.feather, align=a.align, max_shift=a.max_shift, s_lo=a.s_lo, s_hi=a.s_hi, steps=a.steps,
+m = MirrorGuidedRePaint(load_eps_model(a.ckpt, device()), lam=a.lam, adaptive=adaptive, guide_frac=a.guide_frac, guide_when=a.guide_when, asymmetric=a.asymmetric, feather=a.feather, align=a.align, max_shift=a.max_shift, s_lo=a.s_lo, s_hi=a.s_hi, steps=a.steps,
                         jump_length=a.jump_length, resamples=a.resamples, device=device())
 m.name = a.name or ("mirror_repaint_adaptive" if adaptive else "mirror_repaint_fixed")
 run_eval(m, a)

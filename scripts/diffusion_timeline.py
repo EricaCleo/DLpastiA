@@ -14,11 +14,12 @@ We also measure the same curves INSIDE the hole only (one-sided holes), because 
 Runs on the LOGIN NODE (CPU, a few minutes) or a GPU:
     python scripts/diffusion_timeline.py
     python scripts/diffusion_timeline.py --n 64 --every 10 --device cuda
-Writes outputs/figures/fig7_diffusion_timeline.png and outputs/diffusion_timeline.csv, and prints t_edit / t_boost and the
+Writes outputs/figures/fig7_diffusion_timeline.png, outputs/diffusion_timeline.csv and .json, and prints t_edit / t_boost and the
 matching '--guide-frac' for `m6_mirror_guided_repaint.py --guide-when early`.
 """
 import argparse
 import csv
+import json
 import sys
 from pathlib import Path
 
@@ -108,6 +109,10 @@ out = Path(a.out); (out / "figures").mkdir(parents=True, exist_ok=True)
 with open(out / "diffusion_timeline.csv", "w", newline="") as f:
     w = csv.DictWriter(f, fieldnames=list(rows[0])); w.writeheader(); w.writerows(rows)
 frac = lambda t: (1000 - t) / 1000
+json.dump({"t_edit": t_edit, "t_edit_hole": t_edit_hole, "t_boost": t_boost, "rho": ratio,
+           "guide_frac": round(frac(t_edit_hole), 3), "guide_frac_whole": round(frac(t_edit), 3),
+           "edit_threshold": a.edit_threshold, "boost_threshold": a.boost_threshold, "n_faces": len(X), "metric": a.metric},
+          open(out / "diffusion_timeline.json", "w"), indent=2)
 print(f"\nt_edit  (LPIPS(x, P_t) = {a.edit_threshold}, whole face): t = {t_edit}  -> guide the FIRST {frac(t_edit):.2f} of the steps")
 print(f"t_edit  (same relative point, inside the hole):  t = {t_edit_hole}  -> guide the FIRST {frac(t_edit_hole):.2f} of the steps")
 print(f"t_boost (LPIPS(x, x_t) = {a.boost_threshold}):                     t = {t_boost}  -> the LAST {1 - frac(t_boost):.2f} of the steps")

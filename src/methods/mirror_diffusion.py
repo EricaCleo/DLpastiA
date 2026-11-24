@@ -89,14 +89,14 @@ class MirrorGuidedRePaint(RePaint):
     name = "mirror_guided_repaint"
 
     def __init__(self, model, lam=0.1, adaptive=True, guide_frac=1.0, feather=0, align=False, max_shift=16,
-                 s_lo=0.0, s_hi=1.0, guide_when="late", **kw):
+                 s_lo=0.0, s_hi=1.0, guide_when="late", asymmetric=False, **kw):
         """guide_frac: guidance is applied only in the LAST fraction of the schedule (low-noise levels t < guide_frac * steps).
         1.0 = every step (strong: the per-step pulls accumulate over ~1000 steps); small values (0.2-0.5) = light touch."""
         super().__init__(model, **kw)
         # guide_when='early': guidance only in the FIRST guide_frac of the schedule (high noise: sets the rough layout,
         # e.g. where the eye goes), then normal RePaint steps add the detail, so the fill can stay sharp.
         assert guide_when in ("late", "early")
-        self.guide_when = guide_when
+        self.guide_when, self.asymmetric = guide_when, asymmetric      # asymmetric: Asyrp-style update (see RePaint)
         self.lam, self.adaptive, self.guide_frac, self.feather = lam, adaptive, guide_frac, feather
         self.align, self.max_shift, self.s_lo, self.s_hi, self._shifts = align, max_shift, s_lo, s_hi, None
 

@@ -37,8 +37,13 @@ class RePaint(Inpainter):
         x0 = (x - (1 - ab).sqrt() * eps) / ab.sqrt()
         if self.clip:
             x0 = x0.clamp(-1, 1)
-        x0 = self.guide(x0, gt, keep, t)
-        mean = d.post_c1[t] * x0 + d.post_c2[t] * x
+        x0g = self.guide(x0, gt, keep, t)
+        # Normal update: the guided x0 enters the DDPM posterior mean with weight c1 (tiny at high noise, because the
+        # 'direction' part is recomputed from the changed x0 and cancels most of it: Asyrp's Theorem 1).
+        # Asymmetric update (Asyrp eq. 6): change only the predicted x0 and keep the direction from the ORIGINAL noise
+        # prediction; then the change enters with weight sqrt(abar_{t-1}). Identical when the guidance changes nothing.
+        k = d.alphas_cumprod_prev[t].sqrt() if getattr(self, "asymmetric", False) else d.post_c1[t]
+        mean = d.post_c1[t] * x0 + d.post_c2[t] * x + k * (x0g - x0)
         noise = torch.randn_like(x) if t > 0 else torch.zeros_like(x)
         unknown = mean + (0.5 * d.post_logvar[t]).exp() * noise
         abp = d.alphas_cumprod_prev[t]                       # known pixels noised to level t-1

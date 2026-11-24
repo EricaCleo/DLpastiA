@@ -1,7 +1,7 @@
 #!/bin/bash
 # Runs one pipeline STAGE (several commands in a row, on the same GPU, no re-queueing).
 #   bash slurm/run_pipeline.sh <stage>
-# Stages:  train_ddpm | eval_diffusion | train_mae | eval_mae | train_g_uncond | train_comod | train_mirror_04a | train_mirror_04b | eval_gan | train_uvit | eval_uvit | sweep_mirror | train_mirror_04c | final_eval | ablate_mirror | extend_gan | finetune_gan | eval_hybrid | sweep_early | final_early
+# Stages:  train_ddpm | eval_diffusion | train_mae | eval_mae | train_g_uncond | train_comod | train_mirror_04a | train_mirror_04b | eval_gan | train_uvit | eval_uvit | sweep_mirror | train_mirror_04c | final_eval | ablate_mirror | extend_gan | finetune_gan | eval_hybrid | sweep_early | final_early | timing_study
 # Override settings with environment variables, e.g.  N=100 K=3 RESAMPLES=10 bash slurm/run_pipeline.sh eval_diffusion
 # Add new stages (train_mae, train_gan, ...) as new `case` branches when those methods exist.
 set -e
@@ -232,5 +232,45 @@ case "$STAGE" in
       RESULTS_DIR=outputs/results_final python scripts/m6_mirror_guided_repaint.py eval --ckpt "$U" --adaptive --lam "$LAM" --guide-frac "$FRAC" --guide-when early \
         --name mirror_guided_repaint_early_uvit --mask "$mask" --n "${N_SLOW:-300}" --K "$K" --image-size "$SIZE" --resamples "$RESAMPLES"
     done ;;
+  timing_study)     # Method 6: WHEN to nudge, and HOW STRONGLY. One-sided holes, N faces, K fills, the SAME random noise
+    # (SEED) for every run, so all differences come from the nudge alone. Results: outputs/results_timing.
+    #   all      = every step                 first50 = first 50% of the steps    last50 = last 50%
+    #   current  = last 20% (the setting used so far)
+    #   tedit    = until Asyrp's t_edit (measured by diffusion_timeline.py), normal update
+    #   asyrp    = until t_edit + Asyrp's asymmetric update (the full Asyrp recipe)
+    # Two jobs can share the work, e.g.  SCHEDULES="all first50 last50" TIMING_EXTRAS=0  and  SCHEDULES="current tedit asyrp".
+    # TIMING_EXTRAS=1 (default) also measures the timeline, runs plain RePaint, records the trajectories and draws the figures.
+    U="${UVIT_CKPT:-checkpoints/uvit_128.pt}"; RD=outputs/results_timing; SD=outputs/samples_timing; SEED="${SEED:-0}"
+    LAMS="${LAMS:-0.02 0.05 0.1 0.3 1.0}"; SCHEDS="${SCHEDULES:-all first50 last50 current tedit asyrp}"
+    TL=outputs/diffusion_timeline.json
+    one() {   # one <result name> <extra args...>
+      local name="$1"; shift
+      if [ -f "$RD/${name}__one_sided.json" ]; then echo "=== $name: already done, skipped ==="; return 0; fi
+      echo "=== $name ==="
+      RESULTS_DIR="$RD" python scripts/m6_mirror_guided_repaint.py eval --ckpt "$U" --adaptive --seed "$SEED" --name "$name" \
+        --mask one_sided --n "$N" --K "$K" --image-size "$SIZE" --resamples "$RESAMPLES" --save-dir "$SD/${name}_one_sided" "$@"
+    }
+    if [ "${TIMING_EXTRAS:-1}" = 1 ]; then
+      [ -f "$TL" ] || python scripts/diffusion_timeline.py --n 64 --every 10
+      one m6t_repaint --lam 0
+    fi
+    for sched in $SCHEDS; do
+      case "$sched" in
+        all)     ARGS="--guide-when late --guide-frac 1.0" ;;
+        first50) ARGS="--guide-when early --guide-frac 0.5" ;;
+        last50)  ARGS="--guide-when late --guide-frac 0.5" ;;
+        current) ARGS="--guide-when late --guide-frac 0.2" ;;
+        tedit|asyrp)
+          until [ -f "$TL" ]; do echo "waiting for $TL (made by the job with TIMING_EXTRAS=1)"; sleep 60; done
+          F=$(python -c "import json; print(json.load(open('$TL'))['guide_frac'])")
+          ARGS="--guide-when early --guide-frac $F"; [ "$sched" = asyrp ] && ARGS="$ARGS --asymmetric" ;;
+        *) echo "unknown schedule $sched"; exit 2 ;;
+      esac
+      for lam in $LAMS; do one "m6t_${sched}_l${lam}" --lam "$lam" $ARGS; done
+    done
+    if [ "${TIMING_EXTRAS:-1}" = 1 ]; then
+      for lam in ${TRAJ_LAMS:-0.1 1.0}; do python scripts/diffusion_trajectory.py --lam "$lam" --resamples "$RESAMPLES"; done
+      python scripts/make_timing_figures.py
+    fi ;;
   *) echo "unknown stage: $STAGE"; exit 2 ;;
 esac

@@ -49,6 +49,13 @@ def pretty(name):
     """Full method name for a heading; understands the mirror-sweep folder names (..._l0.05_f0.5_k9_a1)."""
     if name in NAMES:
         return NAMES[name]
+    if name == "m6t_repaint":
+        return "RePaint (no nudge)"
+    t = re.match(r"m6t_(\w+?)_l([\d.]+)$", name)
+    if t:
+        when = {"all": "every step", "first50": "first 50%", "last50": "last 50%", "current": "last 20%",
+                "tedit": "until t_edit", "asyrp": "Asyrp (t_edit + asymmetric)"}.get(t.group(1), t.group(1))
+        return f"Mirror nudge: {when}, strength {t.group(2)}"
     e = re.match(r"mirror_early_uvit_l([\d.]+)_f([\d.]+)$", name)
     if e:
         return f"Mirror-guided RePaint (U-ViT), strength {e.group(1)}, FIRST {round(float(e.group(2)) * 100)}% of steps"
