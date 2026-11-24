@@ -1,7 +1,7 @@
 """Report figures. Runs on the LOGIN NODE or a laptop (CPU only, no Slurm, a minute or two):
     python scripts/make_figures.py
 Writes PNGs to outputs/figures/:
-  fig1a_training_unsupervised.png  training loss over time: MAE (1), diffusion model (5, 6), unconditional StyleGAN (2)
+  fig1a_training_unsupervised.png  training loss over time: diffusion model (5, 6), unconditional StyleGAN (2)
   fig1b_training_supervised.png    training loss over time: StyleGAN non-inversion (3) and the mirror models (4a, 4b)
   fig2_lpips_by_method.png         final LPIPS of the six methods, per hole type, with 95% intervals
   fig3_quality_vs_speed.png        LPIPS against seconds per image (one-sided holes)
@@ -49,8 +49,8 @@ NAME = {"mae": "MAE (1)", "stylegan_inversion": "StyleGAN inversion (2)", "style
         "repaint_uvit": "RePaint (5)", "mirror_guided_repaint_uvit": "Mirror-guided RePaint (6)"}
 MASKS = [("one_sided", "One-sided holes"), ("square", "Random square holes"), ("centre", "Centre holes")]
 # the six methods of the report (variant 4c was dropped from the report and is not shown)
-METHODS = ["mae", "stylegan_inversion", "stylegan_noninversion", "mirror_04a", "mirror_04b",
-           "repaint_uvit", "mirror_guided_repaint_uvit"]
+METHODS = ["stylegan_inversion", "stylegan_noninversion", "mirror_04a", "mirror_04b",
+           "repaint_uvit", "mirror_guided_repaint_uvit"]          # MAE was dropped from the report
 plt.rcParams.update({"font.size": 11, "axes.edgecolor": AXIS, "axes.labelcolor": INK2, "xtick.color": INK2,
                      "ytick.color": INK2, "axes.titlesize": 12, "axes.titleweight": "bold", "axes.titlecolor": INK,
                      "axes.titlepad": 10, "axes.grid": True, "grid.color": GRID, "grid.linewidth": 0.7,
@@ -145,9 +145,8 @@ def fig_training():
     print("fig1: found", {k: {m: len(v) for m, v in r.items()} for k, r in runs.items()})
 
     # ---- 1a: the models trained WITHOUT hole/original pairs
-    fig, axs = plt.subplots(1, 3, figsize=(15, 4.3))
-    panels = [("mae", "loss", "MAE (method 1)", "epoch", "reconstruction loss", 15),
-              ("uvit", "loss", "Diffusion model, U-ViT (methods 5, 6)", "training step", "noise-prediction loss", 60)]
+    fig, axs = plt.subplots(1, 2, figsize=(11, 4.3))
+    panels = [("uvit", "loss", "Diffusion model, U-ViT (methods 5, 6)", "training step", "noise-prediction loss", 60)]
     for ax, (m, metric, title, xl, yl, w) in zip(axs, panels):
         x, y = series(runs, m, metric)
         if x is None:
@@ -156,8 +155,8 @@ def fig_training():
             ys = smooth(y, w); ax.plot(x, ys, color=C["mae"] if m == "mae" else C["repaint_uvit"])
             trend_ylim(ax, [ys])
         ax.set_title(title, loc="left"); ax.set_xlabel(xl); ax.set_ylabel(yl)
-    axs[1].xaxis.set_major_formatter(KSTEPS)
-    ax = axs[2]; ys_all = []
+    axs[0].xaxis.set_major_formatter(KSTEPS)
+    ax = axs[1]; ys_all = []
     for metric, lab, ls in [("D", "discriminator", "-"), ("adv", "generator", "--")]:
         x, y = series(runs, "g_uncond", metric)
         if x is not None:
