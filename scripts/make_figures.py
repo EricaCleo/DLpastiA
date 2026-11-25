@@ -1,13 +1,13 @@
 """Report figures. Runs on the LOGIN NODE or a laptop (CPU only, no Slurm, a minute or two):
     python scripts/make_figures.py
 Writes PNGs to outputs/figures/:
-  fig1a_training_diffusion.png     training loss over time: diffusion model (methods 5, 6)
-  fig1b_training_supervised.png    training loss over time: StyleGAN non-inversion (3) and the mirror models (4a, 4b)
+  fig1a_training_diffusion.png     training loss over time: diffusion model (methods 2, 2a)
+  fig1b_training_supervised.png    training loss over time: StyleGAN (1) and its symmetry versions (1a, 1b, 1c)
   fig2_lpips_by_method.png         final LPIPS of the six methods, per hole type, with 95% intervals
   fig3_quality_vs_speed.png        LPIPS against seconds per image (one-sided holes)
   fig4_lpips_vs_hole_size.png      LPIPS for small to large square holes
   fig5_mirror_gain.png             ablation: LPIPS improvement of 4a / 4b over plain StyleGAN, per hole type
-  fig6_mirror_guidance.png         method 6: LPIPS and diversity at different mirror-guidance strengths
+  fig6_mirror_guidance.png         method 2a: LPIPS and diversity at different mirror-guidance strengths
 Any figure whose data is missing is skipped with a message; the others are still made.
 """
 import argparse
@@ -43,10 +43,10 @@ INK, INK2, MUTED, GRID, AXIS, SURF = "#0b0b0b", "#3d3c39", "#6b6a65", "#e6e5df",
 C = {"mae": "#2a78d6", "stylegan_inversion": "#eb6834", "stylegan_noninversion": "#1baf7a",
      "mirror_04a": "#eda100", "mirror_04b": "#b37900", "mirror_04c": "#f5c95c", "mirror_04c_tol": "#f5c95c",
      "repaint_uvit": "#e87ba4", "mirror_guided_repaint_uvit": "#008300"}
-NAME = {"mae": "MAE (1)", "stylegan_inversion": "StyleGAN inversion (2)", "stylegan_noninversion": "StyleGAN non-inversion (3)",
-        "mirror_04a": "Mirror StyleGAN (4a)", "mirror_04b": "Mirror StyleGAN + symmetry loss (4b)",
-        "mirror_04c": "Mirror StyleGAN, aligned axis (old)", "mirror_04c_tol": "Mirror StyleGAN + tolerant symmetry loss (4c)",
-        "repaint_uvit": "RePaint (5)", "mirror_guided_repaint_uvit": "Mirror-guided RePaint (6)"}
+NAME = {"mae": "MAE (1)", "stylegan_inversion": "StyleGAN inversion (2)", "stylegan_noninversion": "StyleGAN (1)",
+        "mirror_04a": "StyleGAN + mirror input (1a)", "mirror_04b": "StyleGAN + strict symmetry loss (1b)",
+        "mirror_04c": "Mirror StyleGAN, aligned axis (old)", "mirror_04c_tol": "StyleGAN + tolerant symmetry loss (1c)",
+        "repaint_uvit": "RePaint (2)", "mirror_guided_repaint_uvit": "RePaint + mirror guidance (2a)"}
 MASKS = [("one_sided", "One-sided holes"), ("square", "Random square holes"), ("centre", "Centre holes")]
 # the methods of the report (4c = tolerant symmetry loss; the earlier aligned-mirror variant is not shown)
 METHODS = ["stylegan_noninversion", "mirror_04a", "mirror_04b", "mirror_04c_tol",
@@ -146,14 +146,14 @@ def fig_training():
         print("fig1: no training lines found in", a.logs, "- skipped"); return
     print("fig1: found", {k: {m: len(v) for m, v in r.items()} for k, r in runs.items()})
 
-    # ---- 1a: the diffusion model (methods 5 and 6)
+    # ---- 1a: the diffusion model (methods 2 and 2a)
     x, y = series(runs, "uvit", "loss")
     if x is None:
         print("fig1a: no diffusion training log found - skipped")
     else:
         fig, ax = plt.subplots(figsize=(7, 4.3))
         ys = smooth(y, 60); ax.plot(x, ys, color=C["repaint_uvit"]); trend_ylim(ax, [ys])
-        ax.set_title("Diffusion model, U-ViT (methods 5, 6)", loc="left"); ax.set_xlabel("training step")
+        ax.set_title("Diffusion model, U-ViT (methods 2, 2a)", loc="left"); ax.set_xlabel("training step")
         ax.set_ylabel("noise-prediction loss"); ax.xaxis.set_major_formatter(KSTEPS)
         fig.tight_layout()
         save(fig, "fig1a_training_diffusion.png")
@@ -280,7 +280,7 @@ def fig_hole_size():
     ax.set_title("LPIPS by hole size, random square holes", loc="left")
     ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:.0f}%"))
     ax.legend(loc="upper left", bbox_to_anchor=(1.01, 1))
-    fig.text(0.01, -0.02, "Shaded bands: 95% intervals. StyleGAN non-inversion (3) and Mirror StyleGAN (4a) lie on top of each other.",
+    fig.text(0.01, -0.02, "Shaded bands: 95% intervals. StyleGAN (1) and StyleGAN + mirror input (1a) lie on top of each other.",
              color=MUTED, fontsize=9)
     fig.tight_layout()
     save(fig, "fig4_lpips_vs_hole_size.png")
@@ -327,8 +327,8 @@ def fig_gain():
     ax.set_xticks(range(len(MASKS))); ax.set_xticklabels([t for _, t in MASKS], fontsize=11)
     ax.grid(axis="x", visible=False)
     ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:+.0f}%" if v else "0"))
-    ax.set_ylabel("LPIPS improvement over StyleGAN (3)")
-    ax.set_title("Ablation: effect of the mirror input, relative to StyleGAN non-inversion (3)", loc="left")
+    ax.set_ylabel("LPIPS improvement over StyleGAN (1)")
+    ax.set_title("Ablation: effect of symmetry, relative to StyleGAN (1)", loc="left")
     ax.legend(loc="upper right")
     fig.text(0.01, -0.03, "Above 0: the mirror version is better. Paired comparison over 1,500 test faces; error bars = 95% intervals.\n"
              "*** p < 0.001   ** p < 0.01   * p < 0.05   n.s. = not significant", color=MUTED, fontsize=9)
@@ -357,10 +357,10 @@ def fig_guidance():
         groups.append((f"guidance in the FIRST {round(f * 100)}% of steps", lambda p, f=f: p[3] == 9 and p[1] == f,
                        early_cols[k % len(early_cols)], "^", "-"))
     fig, axs = plt.subplots(1, 2, figsize=(14, 4.8))
-    for ax, key, yl, title in [(axs[0], "lpips", "LPIPS, one-sided holes (lower is better)", "Method 6: LPIPS against guidance strength"),
-                               (axs[1], "diversity", "diversity between fills (higher = more varied)", "Method 6: diversity against guidance strength")]:
+    for ax, key, yl, title in [(axs[0], "lpips", "LPIPS, one-sided holes (lower is better)", "Method 2a: LPIPS against guidance strength"),
+                               (axs[1], "diversity", "diversity between fills (higher = more varied)", "Method 2a: diversity against guidance strength")]:
         ax.axhline(base[key], color=C["repaint_uvit"], linewidth=2.2, linestyle="-")
-        ax.annotate("RePaint without guidance (5)", (0, base[key]), xycoords=("axes fraction", "data"), xytext=(6, 5),
+        ax.annotate("RePaint without guidance (2)", (0, base[key]), xycoords=("axes fraction", "data"), xytext=(6, 5),
                     textcoords="offset points", ha="left", va="bottom", fontsize=10, color=INK2)
         for name, sel, col, mk, lsty in groups:
             g = sorted([p for p in pts if sel(p)], key=lambda p: p[0])
@@ -369,7 +369,7 @@ def fig_guidance():
         ax.set_xlabel("guidance strength (lambda)"); ax.set_ylabel(yl); ax.set_title(title, loc="left")
     h, l = axs[0].get_legend_handles_labels()
     fig.legend(h, l, loc="lower center", ncol=min(len(l), 3), bbox_to_anchor=(0.5, -0.16))
-    fig.text(0.01, -0.22, "Mirror-guided RePaint (6), one-sided holes, 48 test faces with 3 fills each.", color=MUTED, fontsize=9)
+    fig.text(0.01, -0.22, "RePaint + mirror guidance (2a), one-sided holes, 48 test faces with 3 fills each.", color=MUTED, fontsize=9)
     fig.tight_layout(w_pad=3)
     save(fig, "fig6_mirror_guidance.png")
 

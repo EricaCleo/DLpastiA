@@ -1,4 +1,4 @@
-"""Example faces for the mirror model: StyleGAN non-inversion (3) vs Mirror StyleGAN (4a), side by side.
+"""Example faces for the mirror model: StyleGAN (1) vs StyleGAN + mirror input (1a), side by side.
 Runs on the LOGIN NODE or a laptop (CPU, a minute): it re-creates the fills for a few test faces with both checkpoints.
     python scripts/mirror_examples.py                    # one-sided holes, 6 faces where 4a helps most + 6 random faces
     python scripts/mirror_examples.py --mask square --n-best 4 --n-random 4
@@ -63,7 +63,7 @@ try:
     font = ImageFont.truetype("DejaVuSans.ttf", 15); small = ImageFont.truetype("DejaVuSans.ttf", 13)
 except OSError:
     font = small = ImageFont.load_default()
-COLS = ["Masked input", "Mirror input of 4a", "StyleGAN (3)", "Mirror StyleGAN (4a)", "Original"]
+COLS = ["Masked input", "Mirror input of 1a", "StyleGAN (1)", "+ mirror input (1a)", "Original"]
 
 
 def big(t):
@@ -97,5 +97,5 @@ def picture(indices, title, fname):
     img.save(out / fname); print("saved", out / fname)
 
 
-picture(best, f"{a.mask.replace('_', '-')} holes: the {len(best)} test faces where 4a improves most over 3", f"examples_{a.mask}__best.png")
+picture(best, f"{a.mask.replace('_', '-')} holes: the {len(best)} test faces where 1a improves most over 1", f"examples_{a.mask}__best.png")
 picture(rand, f"{a.mask.replace('_', '-')} holes: {len(rand)} RANDOM test faces (typical case)", f"examples_{a.mask}__random.png")
