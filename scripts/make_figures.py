@@ -1,7 +1,7 @@
 """Report figures. Runs on the LOGIN NODE or a laptop (CPU only, no Slurm, a minute or two):
     python scripts/make_figures.py
 Writes PNGs to outputs/figures/:
-  fig1a_training_unsupervised.png  training loss over time: diffusion model (5, 6), unconditional StyleGAN (2)
+  fig1a_training_diffusion.png     training loss over time: diffusion model (methods 5, 6)
   fig1b_training_supervised.png    training loss over time: StyleGAN non-inversion (3) and the mirror models (4a, 4b)
   fig2_lpips_by_method.png         final LPIPS of the six methods, per hole type, with 95% intervals
   fig3_quality_vs_speed.png        LPIPS against seconds per image (one-sided holes)
@@ -49,8 +49,8 @@ NAME = {"mae": "MAE (1)", "stylegan_inversion": "StyleGAN inversion (2)", "style
         "repaint_uvit": "RePaint (5)", "mirror_guided_repaint_uvit": "Mirror-guided RePaint (6)"}
 MASKS = [("one_sided", "One-sided holes"), ("square", "Random square holes"), ("centre", "Centre holes")]
 # the methods of the report (4c = tolerant symmetry loss; the earlier aligned-mirror variant is not shown)
-METHODS = ["stylegan_inversion", "stylegan_noninversion", "mirror_04a", "mirror_04b", "mirror_04c_tol",
-           "repaint_uvit", "mirror_guided_repaint_uvit"]          # MAE was dropped from the report
+METHODS = ["stylegan_noninversion", "mirror_04a", "mirror_04b", "mirror_04c_tol",
+           "repaint_uvit", "mirror_guided_repaint_uvit"]          # MAE (1) and StyleGAN inversion (2) were dropped          # MAE was dropped from the report
 plt.rcParams.update({"font.size": 11, "axes.edgecolor": AXIS, "axes.labelcolor": INK2, "xtick.color": INK2,
                      "ytick.color": INK2, "axes.titlesize": 12, "axes.titleweight": "bold", "axes.titlecolor": INK,
                      "axes.titlepad": 10, "axes.grid": True, "grid.color": GRID, "grid.linewidth": 0.7,
@@ -146,30 +146,17 @@ def fig_training():
         print("fig1: no training lines found in", a.logs, "- skipped"); return
     print("fig1: found", {k: {m: len(v) for m, v in r.items()} for k, r in runs.items()})
 
-    # ---- 1a: the models trained WITHOUT hole/original pairs
-    fig, axs = plt.subplots(1, 2, figsize=(11, 4.3))
-    panels = [("uvit", "loss", "Diffusion model, U-ViT (methods 5, 6)", "training step", "noise-prediction loss", 60)]
-    for ax, (m, metric, title, xl, yl, w) in zip(axs, panels):
-        x, y = series(runs, m, metric)
-        if x is None:
-            ax.text(0.5, 0.5, "no log found", ha="center", va="center", color=MUTED, transform=ax.transAxes)
-        else:
-            ys = smooth(y, w); ax.plot(x, ys, color=C["mae"] if m == "mae" else C["repaint_uvit"])
-            trend_ylim(ax, [ys])
-        ax.set_title(title, loc="left"); ax.set_xlabel(xl); ax.set_ylabel(yl)
-    axs[0].xaxis.set_major_formatter(KSTEPS)
-    ax = axs[1]; ys_all = []
-    for metric, lab, ls in [("D", "discriminator", "-"), ("adv", "generator", "--")]:
-        x, y = series(runs, "g_uncond", metric)
-        if x is not None:
-            ys = smooth(y, 80); ys_all.append(ys)
-            ax.plot(x, ys, color=C["stylegan_inversion"], linestyle=ls, label=lab)
-    if ys_all:
-        trend_ylim(ax, ys_all); ax.legend(loc="center right")
-    ax.set_title("Unconditional StyleGAN (method 2)", loc="left"); ax.set_xlabel("training step"); ax.set_ylabel("adversarial loss")
-    ax.xaxis.set_major_formatter(KSTEPS)
-    fig.tight_layout(w_pad=3)
-    save(fig, "fig1a_training_unsupervised.png")
+    # ---- 1a: the diffusion model (methods 5 and 6)
+    x, y = series(runs, "uvit", "loss")
+    if x is None:
+        print("fig1a: no diffusion training log found - skipped")
+    else:
+        fig, ax = plt.subplots(figsize=(7, 4.3))
+        ys = smooth(y, 60); ax.plot(x, ys, color=C["repaint_uvit"]); trend_ylim(ax, [ys])
+        ax.set_title("Diffusion model, U-ViT (methods 5, 6)", loc="left"); ax.set_xlabel("training step")
+        ax.set_ylabel("noise-prediction loss"); ax.xaxis.set_major_formatter(KSTEPS)
+        fig.tight_layout()
+        save(fig, "fig1a_training_diffusion.png")
 
     # ---- 1b: the supervised GANs (same training length, so the curves can be compared directly)
     sup = [m for m in ["stylegan_noninversion", "mirror_04a", "mirror_04b", "mirror_04c_tol"] if m in runs]
