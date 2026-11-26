@@ -35,6 +35,7 @@ ap.add_argument("--sweep", default=str(ROOT / "outputs" / "results"), help="48-f
 ap.add_argument("--out", default=str(ROOT / "outputs" / "figures"))
 ap.add_argument("--image-size", type=int, default=128)
 ap.add_argument("--dpi", type=int, default=200)
+ap.add_argument("--drop", nargs="*", default=[], help="methods to leave out of the figures, e.g. --drop mirror_guided_repaint_uvit")
 a = ap.parse_args()
 OUT = Path(a.out); OUT.mkdir(parents=True, exist_ok=True)
 
@@ -50,7 +51,8 @@ NAME = {"mae": "MAE (1)", "stylegan_inversion": "StyleGAN inversion (2)", "style
 MASKS = [("one_sided", "One-sided holes"), ("square", "Random square holes"), ("centre", "Centre holes")]
 # the methods of the report (4c = tolerant symmetry loss; the earlier aligned-mirror variant is not shown)
 METHODS = ["stylegan_noninversion", "mirror_04a", "mirror_04b", "mirror_04c_tol",
-           "repaint_uvit", "mirror_guided_repaint_uvit"]          # MAE (1) and StyleGAN inversion (2) were dropped          # MAE was dropped from the report
+           "repaint_uvit", "mirror_guided_repaint_uvit"]          # MAE and StyleGAN inversion were dropped
+METHODS = [m for m in METHODS if m not in a.drop]
 plt.rcParams.update({"font.size": 11, "axes.edgecolor": AXIS, "axes.labelcolor": INK2, "xtick.color": INK2,
                      "ytick.color": INK2, "axes.titlesize": 12, "axes.titleweight": "bold", "axes.titlecolor": INK,
                      "axes.titlepad": 10, "axes.grid": True, "grid.color": GRID, "grid.linewidth": 0.7,
@@ -212,10 +214,13 @@ def fig_bars():
         ax.grid(axis="y", visible=False)
         ax.set_xlim(0, xmax * 1.22)
     fig.tight_layout(w_pad=2)
-    if any(("mirror_guided_repaint_uvit", k) in R for k, _ in MASKS):
+    if "mirror_guided_repaint_uvit" in METHODS and any(("mirror_guided_repaint_uvit", k) in R for k, _ in MASKS):
         fig.text(0.01, -0.04, "2a shown with the nudge in the last 20% of steps (lambda = 0.02). In the timing study, nudging early "
                  "instead ties RePaint (2); no timing beats it.\nError bars = 95% intervals. StyleGANs: 1,500 test faces; "
                  "RePaint: 300 test faces.", color=MUTED, fontsize=9)
+    else:
+        fig.text(0.01, -0.04, "Error bars = 95% intervals. StyleGANs: 1,500 test faces; RePaint: 300 test faces.",
+                 color=MUTED, fontsize=9)
     save(fig, "fig2_lpips_by_method.png")
 
 
