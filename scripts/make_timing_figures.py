@@ -1,4 +1,4 @@
-"""Figures for the method-6 timing study (stage `timing_study`): WHEN to nudge toward the mirror, and HOW STRONGLY.
+"""Figures for the method-2a timing study (stage `timing_study`): WHEN to nudge toward the mirror, and HOW STRONGLY.
 Runs on the LOGIN NODE or a laptop (CPU, seconds):
     python scripts/make_timing_figures.py
 Reads outputs/results_timing/m6t_*.json and writes to outputs/figures/:
@@ -44,7 +44,7 @@ except (OSError, KeyError):
     F = None
 pct = f"{round(F * 100)}%" if F else "t_edit"
 ORDER = ["all", "first50", "last50", "current", "tedit", "asyrp"]
-LABEL = {"all": "every step", "first50": "first 50%", "last50": "last 50%", "current": "last 20% (current)",
+LABEL = {"all": "every step", "first50": "first 50%", "last50": "last 50%", "current": "last 20%",
          "tedit": f"until t_edit, first {pct} (normal update)", "asyrp": f"Asyrp: until t_edit + asymmetric update"}
 COL = {"all": "#2a78d6", "first50": "#eb6834", "last50": "#6250d6", "current": "#1baf7a", "tedit": "#eda100",
        "asyrp": "#008300", "repaint": "#e87ba4"}
@@ -125,8 +125,8 @@ for i, s in enumerate(scheds):
 ax.set_xticks(range(len(lams))); ax.set_xticklabels([f"{l:g}" for l in lams])
 ax.set_yticks(range(len(scheds))); ax.set_yticklabels([LABEL[s] for s in scheds])
 ax.set_xlabel("nudge strength (lambda)"); ax.grid(False)
-ax.set_title(f"LPIPS for every schedule and strength (RePaint without nudge: {base['lpips']:.3f})", loc="left")
-cb = fig.colorbar(im, ax=ax, shrink=0.85); cb.set_label("change against RePaint (%)\nblue = better, red = worse")
+ax.set_title(f"2a: LPIPS for every nudge timing and strength (RePaint (2), no nudge: {base['lpips']:.3f})", loc="left")
+cb = fig.colorbar(im, ax=ax, shrink=0.85); cb.set_label("change against RePaint (2) (%)\nblue = better, red = worse")
 fig.text(0.01, -0.04, f"One-sided holes, {base['n_images']} test faces, same random noise in every run. "
          "* p < 0.05, ** p < 0.01, *** p < 0.001 (paired test against RePaint).", color=MUTED, fontsize=9)
 fig.tight_layout(); save(fig, "fig8a_timing_heatmap.png")
@@ -143,8 +143,8 @@ for ax, key, yl in [(axs[0], "lpips", "LPIPS (lower is better)"), (axs[1], "dive
         ax.plot([p[0] for p in pts], [p[1] for p in pts], color=COL[s], marker="o", markersize=6, label=LABEL[s])
     ax.set_xscale("log"); ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:g}"))
     ax.set_xticks(lams); ax.set_xlabel("nudge strength (lambda, log scale)"); ax.set_ylabel(yl)
-axs[0].set_title("LPIPS against strength", loc="left"); axs[1].set_title("Diversity against strength", loc="left")
-axs[2].set_title("PSNR against strength", loc="left")
+axs[0].set_title("2a: LPIPS against strength", loc="left"); axs[1].set_title("2a: diversity against strength", loc="left")
+axs[2].set_title("2a: PSNR against strength", loc="left")
 h, l = axs[0].get_legend_handles_labels()
 fig.legend(h, l, loc="lower center", ncol=3, bbox_to_anchor=(0.5, -0.14))
 fig.tight_layout(w_pad=2.5); save(fig, "fig8b_timing_vs_lambda.png")
@@ -157,9 +157,9 @@ for s in scheds:
                max(np.log10(max(lams)) - np.log10(min(lams)), 1e-9) for p in pts], color=COL[s], alpha=0.85,
                edgecolor=SURF, linewidth=1.2, label=LABEL[s], zorder=3)
 ax.scatter([base.get("diversity", np.nan)], [base["lpips"]], marker="*", s=320, color=COL["repaint"], edgecolor=INK2,
-           zorder=4, label="RePaint, no nudge")
+           zorder=4, label="RePaint, no nudge (2)")
 ax.set_xlabel("diversity between fills (higher = more varied)"); ax.set_ylabel("LPIPS (lower is better)")
-ax.set_title("Quality against variety (larger marker = stronger nudge)", loc="left")
+ax.set_title("2a: quality against variety (larger marker = stronger nudge)", loc="left")
 ax.legend(loc="upper left", bbox_to_anchor=(1.01, 1), fontsize=9.5)
 fig.text(0.01, -0.03, "Best corner: bottom right (low LPIPS, high diversity).", color=MUTED, fontsize=9)
 fig.tight_layout(); save(fig, "fig8c_timing_tradeoff.png")
@@ -173,13 +173,13 @@ for i, s in enumerate(scheds):
     ax.text(i, max(gain + b["ci_pct"], 0) + 0.2, f"{gain:+.1f}% {stars(b['p']) or 'n.s.'}\nlambda {b['lam']:g}",
             ha="center", va="bottom", fontsize=9.5, color=INK2)
 ax.axhline(0, color=INK2, linewidth=1)
-SHORT = {"all": "every\nstep", "first50": "first\n50%", "last50": "last\n50%", "current": "last 20%\n(current)",
+SHORT = {"all": "every\nstep", "first50": "first\n50%", "last50": "last\n50%", "current": "last 20%",
          "tedit": f"until t_edit\n({pct}, normal)", "asyrp": "Asyrp\n(t_edit +\nasymmetric)"}
 ax.set_xticks(range(len(scheds))); ax.set_xticklabels([SHORT[s] for s in scheds], fontsize=10)
 ax.grid(axis="x", visible=False)
 ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:+.0f}%" if v else "0"))
-ax.set_ylabel("LPIPS improvement over RePaint")
-ax.set_title("Each schedule at its best strength, against RePaint without nudge", loc="left")
+ax.set_ylabel("LPIPS improvement over RePaint (2)")
+ax.set_title("2a: each nudge timing at its best strength, against RePaint (2)", loc="left")
 lo, hi = ax.get_ylim(); ax.set_ylim(lo, hi + 1.2)
 fig.text(0.01, -0.05, "Above 0: better than RePaint. Paired over the same faces and noise; error bars = 95% intervals. "
          "Note: the best strength is picked on these faces, so treat it as a first look and confirm on new faces.",

@@ -156,7 +156,7 @@ for lo, hi, txt, col in [(t_edit_hole, 999, "1  layout decided\n(nudge here)", "
 ax.set_xlim(1000, 0)
 ax.set_xlabel("noise level t  (sampling runs from left = pure noise to right = clean)")
 ax.set_ylabel("LPIPS to the final face" if a.metric == "lpips" else "L1 to the final face")
-ax.set_title("Diffusion model (U-ViT): when is the content of the face decided?", loc="left", fontweight="bold")
+ax.set_title("Diffusion model (2): when is the content of the face decided?", loc="left", fontweight="bold")
 ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.16), ncol=3, fontsize=9.5)
 fig.tight_layout()
 fig.savefig(out / "figures" / "fig7_diffusion_timeline.png", dpi=200, bbox_inches="tight")

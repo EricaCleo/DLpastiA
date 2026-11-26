@@ -27,9 +27,9 @@ from src.data import get_datasets, load_config, to_image
 
 NAMES = {
     "mae": "MAE (self-supervised ViT)", "mae_n48": "MAE (self-supervised ViT)",
-    "repaint_uvit": "RePaint (U-ViT)",
-    "mirror_fixed_uvit": "Mirror-guided RePaint, fixed (U-ViT)", "mirror_repaint_fixed_uvit": "Mirror-guided RePaint, fixed (U-ViT)",
-    "mirror_adaptive_uvit": "Mirror-guided RePaint, adaptive (U-ViT)", "mirror_repaint_adaptive_uvit": "Mirror-guided RePaint, adaptive (U-ViT)",
+    "repaint_uvit": "RePaint (2)",
+    "mirror_fixed_uvit": "RePaint + mirror nudge, fixed strength (2a)", "mirror_repaint_fixed_uvit": "RePaint + mirror nudge, fixed strength (2a)",
+    "mirror_adaptive_uvit": "RePaint + mirror nudge (2a)", "mirror_repaint_adaptive_uvit": "RePaint + mirror nudge (2a)",
     "grey_fill": "Grey fill (baseline)", "mirror_paste": "Mirror paste (baseline)",
     "stylegan_inversion": "StyleGAN inversion", "stylegan_noninversion": "StyleGAN baseline (1)",
     "mirror_04a": "StyleGAN + mirror input (1a)", "mirror_04b": "StyleGAN + strict symmetry loss (1b)",
@@ -39,8 +39,8 @@ NAMES = {
     "mirror_04a_long": "Mirror-conditioned StyleGAN (04a), trained longer",
     "stylegan_noninversion_ft": "StyleGAN non-inversion, fine-tuned (low lr, harder holes)",
     "mirror_04a_ft": "Mirror-conditioned StyleGAN (04a), fine-tuned (low lr, harder holes)",
-    "mirror_guided_repaint_uvit": "Mirror-guided RePaint (U-ViT)",
-    "mirror_guided_repaint_early_uvit": "Mirror-guided RePaint (U-ViT), guidance early",
+    "mirror_guided_repaint_uvit": "RePaint + mirror nudge (2a)",
+    "mirror_guided_repaint_early_uvit": "RePaint + mirror nudge, early (2a)",
 }
 
 import re
@@ -51,15 +51,15 @@ def pretty(name):
     if name in NAMES:
         return NAMES[name]
     if name == "m6t_repaint":
-        return "RePaint (no nudge)"
+        return "RePaint, no nudge (2)"
     t = re.match(r"m6t_(\w+?)_l([\d.]+)$", name)
     if t:
         when = {"all": "every step", "first50": "first 50%", "last50": "last 50%", "current": "last 20%",
                 "tedit": "until t_edit", "asyrp": "Asyrp (t_edit + asymmetric)"}.get(t.group(1), t.group(1))
-        return f"Mirror nudge: {when}, strength {t.group(2)}"
+        return f"2a mirror nudge: {when}, strength {t.group(2)}"
     e = re.match(r"mirror_early_uvit_l([\d.]+)_f([\d.]+)$", name)
     if e:
-        return f"Mirror-guided RePaint (U-ViT), strength {e.group(1)}, FIRST {round(float(e.group(2)) * 100)}% of steps"
+        return f"2a mirror nudge, strength {e.group(1)}, first {round(float(e.group(2)) * 100)}% of steps"
     h = re.match(r"(mirror_gan|stylegan)_repaint_s([\d.]+)$", name)
     if h:
         first = "Mirror-conditioned StyleGAN (04a)" if h.group(1) == "mirror_gan" else "StyleGAN non-inversion"
@@ -68,7 +68,7 @@ def pretty(name):
     if m:
         lam, frac, k, al = m.groups()
         extra = (", feathered" if int(k) > 0 else "") + (", axis-aligned" if al == "1" else "")
-        return f"Mirror-guided RePaint (U-ViT), strength {lam}, last {round(float(frac) * 100)}% of steps{extra}"
+        return f"2a mirror nudge, strength {lam}, last {round(float(frac) * 100)}% of steps{extra}"
     return name
 
 

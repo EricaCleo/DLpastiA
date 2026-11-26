@@ -53,13 +53,13 @@ if asyrp is None:
         asyrp = 0.35
         print(f"no timeline file at {a.timeline}: using guide fraction {asyrp} for the Asyrp schedule (run diffusion_timeline.py first)")
 # name -> (when, fraction, strength, colour, label)
-SCHED = {"repaint": ("late", 1.0, 0.0, "#e87ba4", "RePaint, no nudge"),
-         "all": ("late", 1.0, a.lam, "#2a78d6", "nudge every step"),
-         "first50": ("early", 0.5, a.lam, "#eb6834", "nudge first 50%"),
-         "last50": ("late", 0.5, a.lam, "#6250d6", "nudge last 50%"),
-         "current": ("late", 0.2, a.lam, "#1baf7a", "nudge last 20% (current)"),
-         "tedit": ("early", asyrp, a.lam, "#eda100", f"nudge until t_edit (first {round(asyrp * 100)}%), normal update"),
-         "asyrp": ("early", asyrp, a.lam, "#008300", f"Asyrp: until t_edit + asymmetric update")}
+SCHED = {"repaint": ("late", 1.0, 0.0, "#e87ba4", "RePaint, no nudge (2)"),
+         "all": ("late", 1.0, a.lam, "#2a78d6", "2a: nudge every step"),
+         "first50": ("early", 0.5, a.lam, "#eb6834", "2a: nudge first 50%"),
+         "last50": ("late", 0.5, a.lam, "#6250d6", "2a: nudge last 50%"),
+         "current": ("late", 0.2, a.lam, "#1baf7a", "2a: nudge last 20%"),
+         "tedit": ("early", asyrp, a.lam, "#eda100", f"2a: nudge until t_edit (first {round(asyrp * 100)}%)"),
+         "asyrp": ("early", asyrp, a.lam, "#008300", f"2a: Asyrp (until t_edit + asymmetric update)")}
 ASYM = {"asyrp"}
 
 cfg = load_config(); cfg["image_size"] = a.image_size

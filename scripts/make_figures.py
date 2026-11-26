@@ -6,8 +6,8 @@ Writes PNGs to outputs/figures/:
   fig2_lpips_by_method.png         final LPIPS of the six methods, per hole type, with 95% intervals
   fig3_quality_vs_speed.png        LPIPS against seconds per image (one-sided holes)
   fig4_lpips_vs_hole_size.png      LPIPS for small to large square holes
-  fig5_mirror_gain.png             ablation: LPIPS improvement of 4a / 4b over plain StyleGAN, per hole type
-  fig6_mirror_guidance.png         method 2a: LPIPS and diversity at different mirror-guidance strengths
+  fig5_mirror_gain.png             ablation: LPIPS improvement of 1a / 1b / 1c over plain StyleGAN (1), per hole type
+  fig6_mirror_guidance.png         method 2a: LPIPS and diversity at different mirror-nudge strengths
 Any figure whose data is missing is skipped with a message; the others are still made.
 """
 import argparse
@@ -46,7 +46,7 @@ C = {"mae": "#2a78d6", "stylegan_inversion": "#eb6834", "stylegan_noninversion":
 NAME = {"mae": "MAE (1)", "stylegan_inversion": "StyleGAN inversion (2)", "stylegan_noninversion": "StyleGAN (1)",
         "mirror_04a": "StyleGAN + mirror input (1a)", "mirror_04b": "StyleGAN + strict symmetry loss (1b)",
         "mirror_04c": "Mirror StyleGAN, aligned axis (old)", "mirror_04c_tol": "StyleGAN + tolerant symmetry loss (1c)",
-        "repaint_uvit": "RePaint (2)", "mirror_guided_repaint_uvit": "RePaint + mirror guidance (2a)"}
+        "repaint_uvit": "RePaint (2)", "mirror_guided_repaint_uvit": "RePaint + mirror nudge (2a)"}
 MASKS = [("one_sided", "One-sided holes"), ("square", "Random square holes"), ("centre", "Centre holes")]
 # the methods of the report (4c = tolerant symmetry loss; the earlier aligned-mirror variant is not shown)
 METHODS = ["stylegan_noninversion", "mirror_04a", "mirror_04b", "mirror_04c_tol",
@@ -220,7 +220,7 @@ def fig_speed():
     if not ms:
         print("fig3: no results - skipped"); return
     fig, ax = plt.subplots(figsize=(8.5, 5))
-    gans = [m for m in ("stylegan_noninversion", "mirror_04a", "mirror_04b") if m in ms]
+    gans = [m for m in ("stylegan_noninversion", "mirror_04a", "mirror_04b", "mirror_04c_tol") if m in ms]
     for m in ms:
         r = R[(m, "one_sided")]
         if m in gans:
@@ -228,13 +228,13 @@ def fig_speed():
         ax.scatter(r["sec_per_image"], r["lpips"], s=110, color=C[m], edgecolor=SURF, linewidth=1.5, zorder=3)
         ax.annotate(NAME[m], (r["sec_per_image"], r["lpips"]), xytext=(10, 0), textcoords="offset points",
                     va="center", fontsize=10, color=INK2)
-    if gans:      # the three supervised StyleGANs sit on the same spot: one marker group, one label
+    if gans:      # the four StyleGANs sit on the same spot: one marker group, one label
         for k, m in enumerate(gans):
             r = R[(m, "one_sided")]
             ax.scatter(r["sec_per_image"], r["lpips"], s=110, color=C[m], edgecolor=SURF, linewidth=1.5, zorder=3 + k)
         r = R[(gans[0], "one_sided")]
         lp = " / ".join(f"{R[(m, 'one_sided')]['lpips']:.3f}" for m in gans)
-        ax.annotate("Supervised StyleGANs (3, 4a, 4b)\nLPIPS " + lp, (r["sec_per_image"], r["lpips"]), xytext=(12, 14),
+        ax.annotate("StyleGAN (1, 1a, 1b, 1c)\nLPIPS " + lp, (r["sec_per_image"], r["lpips"]), xytext=(12, 14),
                     textcoords="offset points", va="bottom", fontsize=10, color=INK2)
     ax.set_xscale("log")
     ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:g} s"))
@@ -349,27 +349,27 @@ def fig_guidance():
     base = S.get(("repaint_uvit", "one_sided"))
     if not pts or not base:
         print("fig6: mirror sweep results not found in", a.sweep, "- skipped"); return
-    groups = [("guidance in the last 20% of steps", lambda p: p[1] == 0.2 and p[2] == 0 and p[3] == 0, "#2a78d6", "o", "-"),
-              ("guidance in the last 50% of steps", lambda p: p[1] == 0.5 and p[2] == 0 and p[3] == 0, "#6250d6", "s", "--"),
+    groups = [("nudge in the last 20% of steps", lambda p: p[1] == 0.2 and p[2] == 0 and p[3] == 0, "#2a78d6", "o", "-"),
+              ("nudge in the last 50% of steps", lambda p: p[1] == 0.5 and p[2] == 0 and p[3] == 0, "#6250d6", "s", "--"),
               ("with softened edges + aligned axis", lambda p: p[2] > 0 and p[3] == 1 and p[1] <= 0.5, "#008300", "D", ":")]
     early_cols = ["#eb6834", "#e34948", "#eda100", "#1baf7a", "#e87ba4"]
     for k, f in enumerate(sorted({p[1] for p in pts if p[3] == 9})):       # one line per EARLY guidance range
-        groups.append((f"guidance in the FIRST {round(f * 100)}% of steps", lambda p, f=f: p[3] == 9 and p[1] == f,
+        groups.append((f"nudge in the first {round(f * 100)}% of steps", lambda p, f=f: p[3] == 9 and p[1] == f,
                        early_cols[k % len(early_cols)], "^", "-"))
     fig, axs = plt.subplots(1, 2, figsize=(14, 4.8))
-    for ax, key, yl, title in [(axs[0], "lpips", "LPIPS, one-sided holes (lower is better)", "Method 2a: LPIPS against guidance strength"),
-                               (axs[1], "diversity", "diversity between fills (higher = more varied)", "Method 2a: diversity against guidance strength")]:
+    for ax, key, yl, title in [(axs[0], "lpips", "LPIPS, one-sided holes (lower is better)", "2a: LPIPS against nudge strength"),
+                               (axs[1], "diversity", "diversity between fills (higher = more varied)", "2a: diversity against nudge strength")]:
         ax.axhline(base[key], color=C["repaint_uvit"], linewidth=2.2, linestyle="-")
-        ax.annotate("RePaint without guidance (2)", (0, base[key]), xycoords=("axes fraction", "data"), xytext=(6, 5),
+        ax.annotate("RePaint, no nudge (2)", (0, base[key]), xycoords=("axes fraction", "data"), xytext=(6, 5),
                     textcoords="offset points", ha="left", va="bottom", fontsize=10, color=INK2)
         for name, sel, col, mk, lsty in groups:
             g = sorted([p for p in pts if sel(p)], key=lambda p: p[0])
             if g:
                 ax.plot([p[0] for p in g], [p[4][key] for p in g], color=col, marker=mk, markersize=7, linestyle=lsty, label=name)
-        ax.set_xlabel("guidance strength (lambda)"); ax.set_ylabel(yl); ax.set_title(title, loc="left")
+        ax.set_xlabel("nudge strength (lambda)"); ax.set_ylabel(yl); ax.set_title(title, loc="left")
     h, l = axs[0].get_legend_handles_labels()
     fig.legend(h, l, loc="lower center", ncol=min(len(l), 3), bbox_to_anchor=(0.5, -0.16))
-    fig.text(0.01, -0.22, "RePaint + mirror guidance (2a), one-sided holes, 48 test faces with 3 fills each.", color=MUTED, fontsize=9)
+    fig.text(0.01, -0.22, "RePaint + mirror nudge (2a), one-sided holes, 48 test faces with 3 fills each.", color=MUTED, fontsize=9)
     fig.tight_layout(w_pad=3)
     save(fig, "fig6_mirror_guidance.png")
 
