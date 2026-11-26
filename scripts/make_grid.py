@@ -77,6 +77,8 @@ ap.add_argument("--mask", default="one_sided", choices=["square", "one_sided", "
 ap.add_argument("--methods", nargs="+", required=True, help="sample-folder prefixes, e.g. mae repaint_uvit")
 ap.add_argument("--n", type=int, default=100, help="images used by the evaluation run")
 ap.add_argument("--rows", type=int, default=8)
+ap.add_argument("--start", type=int, default=0, help="first row to show (of the 48 faces, rows 0-16 are cats, 17-32 dogs, 33-47 wild animals)")
+ap.add_argument("--pick", type=int, nargs="+", default=None, help="exact rows to show, e.g. --pick 2 18 20 35 40 44")
 ap.add_argument("--image-size", type=int, default=128)
 ap.add_argument("--samples-dir", default=str(ROOT / "outputs" / "samples"))
 ap.add_argument("--out", default=None)
@@ -93,13 +95,14 @@ labels = ["Masked input (hole in white)"] + [pretty(m) for m in a.methods] + ([]
 wrapped = [textwrap.wrap(t, width=max(8, S // 6 - 1)) for t in labels]
 head = 12 * max(len(w) for w in wrapped) + 8
 cols = labels
-canvas = Image.new("RGB", (S * len(cols), head + S * a.rows), "white")
+rows = a.pick if a.pick else list(range(a.start, a.start + a.rows))
+canvas = Image.new("RGB", (S * len(cols), head + S * len(rows)), "white")
 draw = ImageDraw.Draw(canvas)
 for c, lines in enumerate(wrapped):
     for i, line in enumerate(lines):
         draw.text((c * S + 4, 4 + 12 * i), line, fill="black")
 missing = set()
-for r in range(a.rows):
+for k, r in enumerate(rows):
     x, m, xm = test_ds[idxs[r]]
     shown = (1 - m) * x + m * 1.0                                      # hole drawn white
     tiles = [Image.fromarray(to_image(shown))]
@@ -118,9 +121,10 @@ for r in range(a.rows):
         for meth, t in zip(a.methods, tiles[1:]):
             t.save(d / f"{a.mask}__{r:02d}__{meth}.png")
     for c, t in enumerate(tiles):
-        canvas.paste(t, (c * S, head + r * S))
+        canvas.paste(t, (c * S, head + k * S))
 parts = ["masked"] + a.methods + ([] if a.no_original else ["original"])
-out = a.out or str(ROOT / "outputs" / f"grid_{a.mask}__{'+'.join(parts)}__n{a.n}{'__no-original' if a.no_original else ''}.png")
+tag = "" if (not a.pick and a.start == 0) else "__rows" + "-".join(map(str, rows))
+out = a.out or str(ROOT / "outputs" / f"grid_{a.mask}__{'+'.join(parts)}__n{a.n}{'__no-original' if a.no_original else ''}{tag}.png")
 Path(out).parent.mkdir(parents=True, exist_ok=True)
 canvas.save(out)
 print("saved", out, f"({canvas.size[0]}x{canvas.size[1]})")
