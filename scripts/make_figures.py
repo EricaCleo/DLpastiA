@@ -46,7 +46,7 @@ C = {"mae": "#2a78d6", "stylegan_inversion": "#eb6834", "stylegan_noninversion":
 NAME = {"mae": "MAE (1)", "stylegan_inversion": "StyleGAN inversion (2)", "stylegan_noninversion": "StyleGAN (1)",
         "mirror_04a": "StyleGAN + mirror input (1a)", "mirror_04b": "StyleGAN + strict symmetry loss (1b)",
         "mirror_04c": "Mirror StyleGAN, aligned axis (old)", "mirror_04c_tol": "StyleGAN + tolerant symmetry loss (1c)",
-        "repaint_uvit": "RePaint (2)", "mirror_guided_repaint_uvit": "RePaint + mirror nudge (2a)"}
+        "repaint_uvit": "RePaint (2)", "mirror_guided_repaint_uvit": "RePaint + late mirror nudge (2a)"}
 MASKS = [("one_sided", "One-sided holes"), ("square", "Random square holes"), ("centre", "Centre holes")]
 # the methods of the report (4c = tolerant symmetry loss; the earlier aligned-mirror variant is not shown)
 METHODS = ["stylegan_noninversion", "mirror_04a", "mirror_04b", "mirror_04c_tol",
@@ -212,6 +212,10 @@ def fig_bars():
         ax.grid(axis="y", visible=False)
         ax.set_xlim(0, xmax * 1.22)
     fig.tight_layout(w_pad=2)
+    if any(("mirror_guided_repaint_uvit", k) in R for k, _ in MASKS):
+        fig.text(0.01, -0.04, "2a shown with the nudge in the last 20% of steps (lambda = 0.02). In the timing study, nudging early "
+                 "instead ties RePaint (2); no timing beats it.\nError bars = 95% intervals. StyleGANs: 1,500 test faces; "
+                 "RePaint: 300 test faces.", color=MUTED, fontsize=9)
     save(fig, "fig2_lpips_by_method.png")
 
 
